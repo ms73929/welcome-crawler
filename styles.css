@@ -1,0 +1,207 @@
+/* styles.css: every style for Welcome, Crawler.
+   Colours, sizes and spacing for the HUD, the dialogs, the touch controls and the store are all here.
+   (Styles the game changes while it runs, such as the stick knob and the touch-control height, are set in index.html's script.) */
+:root { --ink:#f4e6c8; --panel:rgba(20,14,34,.92); --accent:#f2c66d; --bg:#150d22; }
+html, body { height:100%; margin:0; background:#0b1226; color:var(--ink); font-family: system-ui, sans-serif; overflow:hidden; }
+#hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:calc(12px + env(safe-area-inset-left)); right:calc(12px + env(safe-area-inset-right)); display:flex; justify-content:space-between; align-items:flex-start; gap:12px; pointer-events:none; z-index:2; }
+#hud b { font-size:20px; color:var(--accent); }
+.card { background:var(--panel); border:1px solid var(--accent); border-radius:8px; padding:10px 14px; pointer-events:auto; }
+#prompt { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:2; }
+kbd { background:var(--accent); color:#150d22; border-radius:3px; padding:1px 6px; font-weight:bold; }
+[hidden] { display:none !important; }
+button { touch-action:manipulation; font:inherit; font-weight:bold; cursor:pointer; min-height:44px; padding:8px 16px; background:var(--accent); color:#150d22; border:2px solid var(--accent); border-radius:6px; }
+button:hover, button:focus-visible { background:#ffd98a; border-color:#ffd98a; }
+button:focus-visible, #canvasWrap:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }
+#music, #mouselook { margin:6px 8px 0 0; min-height:36px; padding:4px 10px; }       /* spaced from the right, so they line up when they wrap onto a new line */
+.ghost { background:transparent; color:var(--ink); border-color:var(--ink); }
+.ghost:hover, .ghost:focus-visible { background:rgba(244,230,200,0.12); border-color:var(--ink); }
+#toasts { position:fixed; top:96px; left:50%; transform:translateX(-50%); width:min(440px, calc(100% - 32px)); max-height:calc(100vh - 112px); overflow-y:auto; z-index:3; display:flex; flex-direction:column; gap:10px; pointer-events:none; }   /* scrolls on a short screen, so Dismiss is always reachable */
+.toast { background:var(--panel); border:2px solid var(--accent); border-radius:10px; padding:12px 16px; pointer-events:auto; }
+.toast p { margin:0; }
+.toast-label { color:var(--accent); font-size:14px; font-weight:bold; text-transform:uppercase; letter-spacing:0.06em; }
+.toast-title { font-size:22px; font-weight:bold; }
+.toast-text { font-size:16px; margin-bottom:8px !important; }
+.toast-speech { font-size:20px; margin-bottom:8px !important; }
+.toast-speech .who { color:var(--accent); font-weight:bold; letter-spacing:0.08em; }
+.sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
+.toast button { min-height:36px; padding:2px 12px; }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: toastIn 0.35s ease-out; } }
+@keyframes toastIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+dialog { background:#1f1730; color:var(--ink); border:2px solid var(--accent); border-radius:10px; padding:20px 24px; width:min(480px, 92vw); max-height:calc(100vh - 16px); max-height:calc(100dvh - 16px); overflow-y:auto; box-sizing:border-box; }
+dialog::backdrop { background:rgba(10,6,20,0.78); }
+dialog h2 { color:var(--accent); font-size:26px; margin:0 0 8px; padding-right:48px; }
+dialog p { margin:0 0 12px; }
+.row { display:flex; flex-wrap:wrap; gap:12px; margin-top:8px; }
+.opt { display:block; width:100%; text-align:left; margin:0 0 10px; padding:10px 14px; }
+.opt strong { display:block; }
+.opt span { display:block; font-weight:400; font-size:15px; }
+.opt[aria-disabled="true"] { background:transparent; color:var(--ink); border-style:dashed; cursor:not-allowed; }
+.opt[aria-disabled="true"]:hover, .opt[aria-disabled="true"]:focus-visible { background:transparent; border-color:var(--accent); }
+#bugNote { min-height:1.5em; font-weight:bold; margin:8px 0 12px; }
+/* --- Touch controls (shown only when the player is using touch) --- */
+.touch-only { display:none; }
+body.touch .touch-only { display:inline-block; }
+body.touch #keyhint, body.touch #prompt, body.touch .kbhint { display:none; }
+button[aria-pressed="true"]::before { content:"\2713\00a0"; }
+button[aria-pressed="true"] { background:#ffd98a; border-color:var(--ink); }
+button[aria-pressed="false"] { background:transparent; color:var(--ink); border-color:var(--accent); }
+button[aria-pressed="false"]:hover, button[aria-pressed="false"]:focus-visible { background:rgba(242,198,109,0.16); }
+body.touch #music, body.touch #mouselook, body.touch .toast button { min-height:44px; }
+#rotateTip { margin:0 0 6px; font-size:15px; }
+#rotateTip button { min-height:44px; margin:4px 0 0; }
+#loading { position:fixed; top:var(--hud-bottom, 110px); left:50%; transform:translateX(-50%); z-index:4; padding:6px 14px; pointer-events:none; }      /* just below the cards, and it never catches a click */
+#touchUI { position:fixed; left:var(--vv-left, 0px); top:var(--vv-top, 0px); width:var(--vv-w, 100%); height:var(--vv-h, 100%); z-index:2; pointer-events:none; --btn:clamp(52px, 12vmin, 68px); -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+.tc-cluster { position:absolute; bottom:calc(14px + env(safe-area-inset-bottom) + var(--raise, 0px)); display:flex; flex-direction:column; gap:8px; }
+.tc-left  { left:calc(14px + env(safe-area-inset-left));   align-items:flex-start; }
+.tc-right { right:calc(14px + env(safe-area-inset-right)); align-items:flex-end; }
+body.swap .tc-left  { left:auto; right:calc(14px + env(safe-area-inset-right)); align-items:flex-end; }
+body.swap .tc-right { right:auto; left:calc(14px + env(safe-area-inset-left));  align-items:flex-start; }
+.tc-label { font-size:13px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink); background:var(--panel); border-radius:4px; padding:1px 8px; }
+#stick { position:relative; width:calc(var(--btn) * 2.4); height:calc(var(--btn) * 2.4); border-radius:50%; border:3px solid var(--accent); background:rgba(20,14,34,0.6); pointer-events:auto; touch-action:none; }
+#stickKnob { position:absolute; left:50%; top:50%; width:var(--btn); height:var(--btn); margin:calc(var(--btn) / -2) 0 0 calc(var(--btn) / -2); border-radius:50%; background:var(--accent); border:3px solid var(--ink); box-sizing:border-box; pointer-events:none; }
+.pad { display:grid; grid-template-columns:repeat(3, var(--btn)); grid-template-rows:repeat(3, var(--btn)); gap:6px; pointer-events:auto; }
+.pad button { width:var(--btn); height:var(--btn); min-height:0; padding:0; touch-action:none; font-size:calc(var(--btn) * 0.42); line-height:1; border-radius:12px; }
+#camPad button { background:var(--panel); color:var(--accent); border-color:var(--accent); }
+.pad button.down { background:var(--ink); color:#150d22; border-color:var(--ink); }
+#touchAct { pointer-events:auto; min-height:var(--btn); max-width:min(62vw, 270px); font-size:18px; border-radius:14px; padding:6px 16px; }
+dialog[open] { top:calc(var(--vv-top, 0px) + var(--vv-h, 100vh) / 2); bottom:auto; margin:0 auto; transform:translateY(-50%); max-height:calc(var(--vv-h, 100vh) - 16px); }
+body.touch #toasts { top:var(--hud-bottom, 96px); max-height:calc(100vh - var(--hud-bottom, 96px) - 16px); max-height:calc(100dvh - var(--hud-bottom, 96px) - 16px); }
+@media (orientation: portrait) {                                     /* upright: the four buttons sit two by two, so the cards do not cover a third of the picture */
+  body.touch #hud .card:nth-child(2) { display:grid; grid-template-columns:1fr 1fr; gap:6px; align-content:start; }
+  body.touch #hud .card:nth-child(2) button { margin:0; padding:4px 6px; font-size:14px; }
+  body.touch #rotateTip { grid-column:1 / -1; margin:0; }
+}
+.x { position:absolute; top:8px; right:8px; min-width:44px; min-height:44px; padding:0; font-size:22px; line-height:1; background:transparent; color:var(--ink); border-color:var(--ink); }
+.x:hover, .x:focus-visible { background:rgba(244,230,200,0.12); border-color:var(--ink); }
+.opt strong .price { display:inline; float:right; margin-left:12px; font-weight:bold; font-size:inherit; }
+.opt[aria-disabled="true"] strong .price { text-decoration:none; }
+#storeNote { min-height:1.5em; font-weight:bold; margin:8px 0 12px; }
+.itemhead { display:block; overflow:hidden; }
+.item { border:1px solid var(--accent); border-radius:8px; padding:10px 14px; margin:0 0 10px; }
+.item .d { display:block; font-size:15px; margin:2px 0 6px; }
+.item .row { align-items:center; margin-top:4px; gap:8px; }
+.item .qty { font-weight:bold; margin-left:4px; }
+#cartHead { color:var(--accent); font-size:20px; margin:14px 0 6px; }
+#cartLines { margin:0 0 8px; padding-left:22px; }
+#cartTotal { font-weight:bold; margin:0 0 8px; }
+.item button[aria-disabled="true"], #storeBuy[aria-disabled="true"], #storeEmpty[aria-disabled="true"] { background:transparent; color:var(--ink); border-style:dashed; cursor:not-allowed; }
+.item button[aria-disabled="true"]:hover, #storeBuy[aria-disabled="true"]:hover, #storeEmpty[aria-disabled="true"]:hover,
+.item button[aria-disabled="true"]:focus-visible, #storeBuy[aria-disabled="true"]:focus-visible, #storeEmpty[aria-disabled="true"]:focus-visible { background:transparent; border-color:var(--accent); }
+.bagHead { color:var(--accent); font-size:20px; margin:14px 0 6px; }
+#fade { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; z-index:5; transition:opacity 0.5s; }
+@media (prefers-reduced-motion: reduce) { #fade { transition:none; } }
+
+/* item pictures (item-art.js) sit on a cream tile so their dark outlines stay easy to see */
+.art { display:inline-block; width:72px; height:72px; flex:none; background:#f4e6c8; border:2px solid var(--accent); border-radius:10px; padding:4px; }
+.art svg, .art img { display:block; width:100%; height:100%; object-fit:contain; }
+.art.small { width:48px; height:48px; padding:3px; border-radius:8px; }
+.itemline { display:flex; gap:10px; align-items:flex-start; }
+.itemline > div { flex:1; min-width:0; }
+
+/* the store: a grid of cards, each turning over to show its description (shop.js) */
+#storeDialog { width:min(780px, 94vw); }
+#storeItems { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px; margin:0 0 8px; }
+.shopcard { perspective:1000px; }
+.shopcard-inner { display:grid; transform-style:preserve-3d; transition:transform .6s cubic-bezier(.34,1.2,.64,1); }
+.shopcard.flipped .shopcard-inner { transform:rotateY(180deg); }
+.shopface { grid-area:1/1; display:flex; flex-direction:column; gap:6px; padding:10px 12px; border:1px solid var(--accent); border-radius:8px; background:#1f1730;
+  backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.shopface.back { transform:rotateY(180deg); }
+.shopface .top { display:flex; gap:10px; align-items:center; }
+.shopface .name { display:block; font-weight:bold; }
+.shopface .cost { display:block; }
+.shopface .d { margin:0; font-size:15px; flex:1; }
+.shopface .status { margin:0; min-height:1.3em; font-size:14px; }
+.shopface .row { align-items:center; gap:8px; margin-top:auto; }
+.shopface .qty { font-weight:bold; }
+.shopface button[aria-disabled="true"] { background:transparent; color:var(--ink); border-style:dashed; cursor:not-allowed; }
+.shopface button[aria-disabled="true"]:hover, .shopface button[aria-disabled="true"]:focus-visible { background:transparent; border-color:var(--accent); }
+@media (prefers-reduced-motion: reduce) { .shopcard-inner { transition:none; } }
+
+/* ============ Motion for First Chance for Loose Change (the store window) ============
+   Personality: dingy, unexpected, overpriced. So: heavy and slow, no bounce; one odd beat in each interaction; prices arrive last.
+   Every animation below is inside the "no-preference" query, so with reduced motion on, everything simply appears and nothing loops.
+   Durations: press 90 ms, feedback 240 ms, reveals 450 to 500 ms, flight 520 ms, loops 4 to 7 s. (R1 to R6 are the motion sentences.) */
+:root {
+  --ease-heavy: cubic-bezier(0.25, 0.8, 0.35, 1);   /* lands and sticks */
+  --ease-sag: cubic-bezier(0.45, 0, 0.55, 1);       /* swaying, fading */
+  --ease-clunk: cubic-bezier(0.5, 0, 0.8, 0.4);     /* starts slow, drops fast */
+}
+/* the hero: the storefront, the headline and the Pause button */
+.store-hero { display:flex; align-items:center; gap:16px; margin:0 0 8px; padding-right:48px; }
+.store-hero > div:last-child { min-width:0; }
+.store-hero h2, .store-hero h1 { margin:0 0 4px; padding:0; font-size:clamp(22px, 4vw, 30px); line-height:1.15; }
+.store-hero p { margin:0 0 8px; }
+.storefront { flex:none; }
+.storefront svg { display:block; height:130px; width:auto; border-radius:8px; }
+/* the try-on strip (it stays at the top of the window while the cards scroll) and the cart badge */
+.tryon { position:sticky; top:0; z-index:3; display:flex; align-items:center; gap:12px; margin:0 0 10px; padding:6px 0; background:#1f1730; border-bottom:1px solid var(--accent); }
+.tryon-art svg { display:block; width:84px; height:auto; }
+.tryon-text { flex:1; min-width:0; font-weight:bold; }
+.tryon-hat { opacity:0; }
+.tryon-hat.on { opacity:1; }
+.cartpill { display:flex; align-items:center; gap:8px; font-weight:bold; }
+.badge { display:inline-grid; place-items:center; min-width:30px; height:30px; padding:0 8px; border-radius:15px; background:#ffd23f; color:#2b2233; border:2px solid #2b2233; font-weight:bold; }
+.fly-copy { position:absolute; margin:0; z-index:20; pointer-events:none; }   /* the copy of an item's picture that flies to the badge */
+@media (max-width: 520px) {
+  .store-hero { flex-wrap:wrap; }
+  .storefront svg { height:100px; }
+  .tryon-art svg { width:64px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* R1 feedback: a card lifts and tilts a little crookedly on hover or keyboard focus, and sinks on press; buttons lift too.
+     The transition sits on the base rule, so the card eases back out as well. */
+  .shopcard { transition: transform 240ms var(--ease-heavy), translate 500ms var(--ease-heavy) var(--d, 0ms), opacity 500ms var(--ease-heavy) var(--d, 0ms); }
+  .shopcard:hover, .shopcard:has(:focus-visible) { transform: translateY(-3px) rotate(-0.8deg); }
+  .shopcard:active { transform: translateY(-1px) scale(0.97); transition-duration: 90ms, 500ms, 500ms; }
+  .shopface button { transition: transform 240ms var(--ease-heavy); }
+  .shopface button:not([aria-disabled="true"]):hover, .shopface button:not([aria-disabled="true"]):focus-visible { transform: translateY(-2px); }
+  .shopface button:not([aria-disabled="true"]):active { transform: scale(0.97); transition-duration: 90ms; }
+
+  /* R2 load sequence: each word of the shop's name drops in, 110 ms after the one before; the whole name is there by about 0.9 s.
+     "Loose" ends up a little crooked. */
+  .js-motion #storeTitle .w { display:inline-block; opacity:0; transform:translateY(16px); }
+  .js-motion #storeDialog.play #storeTitle .w { animation: word-drop 450ms var(--ease-heavy) both; animation-delay: calc(var(--i) * 110ms); }
+  #storeTitle .w.crooked { --end-rot: 2deg; }
+  @keyframes word-drop { to { opacity:1; transform:rotate(var(--end-rot, 0deg)); } }
+
+  /* R3 living illustration: the sign and the llama sway from where they hang, and the bulb dims now and then. The three loop at
+     different lengths, so they never move in step. The bulb never goes dark: it only dips to 75 percent, about once every four seconds. */
+  .storefront .sign { transform-box:view-box; transform-origin:480px 172px; animation: sway-sign 5.2s var(--ease-sag) infinite alternate; }
+  .storefront .llama { transform-box:view-box; transform-origin:190px 176px; animation: sway-llama 6.7s var(--ease-sag) infinite alternate; }
+  .storefront .bulb { animation: bulb-dim 4.3s var(--ease-sag) infinite; }
+  @keyframes sway-sign { from { transform:rotate(-3deg); } to { transform:rotate(2deg); } }
+  @keyframes sway-llama { from { transform:rotate(-2.5deg); } to { transform:rotate(3.5deg); } }
+  @keyframes bulb-dim { 0%, 62%, 100% { opacity:1; } 78% { opacity:0.75; } }
+  .storefront.paused * { animation-play-state: paused; }
+
+  /* R4 scroll reveal: a card fades up as it scrolls into view and its price follows 150 ms later. Cards are hidden only when the
+     script is running (.js-motion), and the script shows them all at once if it cannot watch the scrolling. */
+  .js-motion .shopcard:not(.in) { opacity:0; translate:0 24px; }
+  .shopcard .cost { transition: opacity 500ms var(--ease-heavy) calc(var(--d, 0ms) + 150ms), translate 500ms var(--ease-heavy) calc(var(--d, 0ms) + 150ms); }
+  .js-motion .shopcard:not(.in) .cost { opacity:0; translate:0 10px; }
+
+  /* R5 scroll story: the hat on Donut in the strip crossfades as a hat card crosses the middle of the window */
+  .tryon-hat { transition: opacity 350ms var(--ease-sag); }
+}
+@media (prefers-reduced-motion: reduce) { .pausebtn { display:none; } }   /* nothing loops, so there is nothing to pause */
+
+/* where each button sits on the 3 x 3 grid of a pad (a button that already has a class gets its position from these too) */
+.pos-up { grid-area:1/2; }
+.pos-left { grid-area:2/1; }
+.pos-centre { grid-area:2/2; }
+.pos-right { grid-area:2/3; }
+.pos-down { grid-area:3/2; }
+
+/* ============ shop.html: the same store as a plain page (shop.js runs it; the game's version is the <dialog>) ============ */
+html:has(body.shop-page) { height:auto; overflow:auto; }          /* the game locks the page in place; the shop page has to scroll */
+body.shop-page { height:auto; min-height:100%; overflow:visible; background:#150d22; padding:16px 0 40px; }
+.standalone { position:relative; width:min(780px, 94vw); margin:0 auto; padding:20px 24px 28px; box-sizing:border-box; background:#1f1730; border:2px solid var(--accent); border-radius:10px; }
+.standalone p { margin:0 0 12px; }
+.standalone .store-hero { padding-right:0; }
+.standalone .store-hero h1 { color:var(--accent); }
+#demoNote { font-size:15px; border-left:4px solid var(--accent); padding-left:10px; }
+.linkbtn { display:inline-flex; align-items:center; box-sizing:border-box; min-height:44px; padding:8px 16px; font-weight:bold; text-decoration:none; color:var(--ink); background:transparent; border:2px solid var(--ink); border-radius:6px; }
+.linkbtn:hover, .linkbtn:focus-visible { background:rgba(244,230,200,0.12); }
+.linkbtn:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }

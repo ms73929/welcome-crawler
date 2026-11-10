@@ -1,0 +1,2293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Welcome, Crawler</title>
+<!--
+  WELCOME, CRAWLER · ITE 270 · version 19 (styles are in styles.css and the store's mechanics are in shop.js; a bag tracks what the crawler carries, opened with B or the Bag button; the store uses a cart and one Buy at the end; leave Mordecai and a new doorway opens onto new halls: pixel block and dungeon-worn piñata llamas, confetti, coin drops, a store; touch controls for phones and tablets; Carl; Mordecai is solid)
+  ------------------------------------------------------
+  Open this file in a browser (double-click it). Keep Paper_Kite_Turn.mp3 in the same folder for the music button.
+  Parts of the file: sounds, music, announcements, the surface (street, props, the stairs down), Floor 1 (the hallways),
+  the bugs, Donut, Mordecai, the new halls (llamas, confetti, store), achievements, the camera, the game loop. Each part is labelled.
+-->
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="hud">
+  <div class="card"><b>Welcome, Crawler</b><br><span id="floorLabel">Surface</span><br><span id="places">Places: 0 / 5</span><br><span id="sticks" aria-live="polite">Sticks: 0</span><span id="coinsWrap" hidden><br><span id="coins" aria-live="polite">Coins: 0</span><br><span id="bugCount">Bugs squished: 0</span></span></div>
+  <div class="card"><p id="rotateTip" hidden role="status">Tip: turn your device sideways for a bigger view. The game works upright too. <button id="tipClose" type="button">Dismiss</button></p><span id="keyhint">WASD or arrows move · E interact · B bag · J L turn the camera · I K tilt it · C behind me</span> <button id="mouselook" type="button" aria-pressed="false">Drag to look</button> <button id="tcDpad" type="button" class="touch-only" aria-pressed="false">D-pad</button> <button id="tcSwap" type="button" class="touch-only" aria-pressed="false">Swap sides</button> <button id="tcRaise" type="button" class="touch-only" aria-pressed="false">Raise controls</button> <button id="bagBtn" type="button" aria-keyshortcuts="B">Bag</button> <button id="music">Music on</button></div>
+</div>
+<div id="loading" class="card" role="status" hidden>Loading Carl…</div>
+<div id="prompt" class="card" hidden><kbd>E</kbd> <span id="promptText"></span></div>
+<div id="touchUI" hidden role="group" aria-label="On-screen controls">
+  <div class="tc-cluster tc-left">
+    <span class="tc-label" aria-hidden="true">Move</span>
+    <div id="stick" role="group" aria-label="Movement stick. Drag it to walk. If dragging is hard, switch on the D-pad button at the top."><div id="stickKnob"></div></div>
+    <div id="dpad" class="pad" hidden role="group" aria-label="Movement buttons">
+      <button type="button" data-hold="KeyW" data-step="400" class="pos-up" aria-label="Walk forward">&#9650;</button>
+      <button type="button" data-hold="KeyA" data-step="400" class="pos-left" aria-label="Walk left">&#9664;</button>
+      <button type="button" data-hold="KeyD" data-step="400" class="pos-right" aria-label="Walk right">&#9654;</button>
+      <button type="button" data-hold="KeyS" data-step="400" class="pos-down" aria-label="Walk back">&#9660;</button>
+    </div>
+  </div>
+  <div class="tc-cluster tc-right">
+    <button id="touchAct" type="button" hidden></button>
+    <span class="tc-label" aria-hidden="true">Camera</span>
+    <div id="camPad" class="pad" role="group" aria-label="Camera buttons. Hold a button to keep turning, or tap it for a small step.">
+      <button type="button" data-hold="KeyI" data-step="350" class="pos-up" aria-label="Tilt the camera up">&#9650;</button>
+      <button type="button" data-hold="KeyJ" data-step="380" class="pos-left" aria-label="Turn the camera left">&#9664;</button>
+      <button type="button" id="camHome" class="pos-centre" aria-label="Put the camera behind me">&#9679;</button>
+      <button type="button" data-hold="KeyL" data-step="380" class="pos-right" aria-label="Turn the camera right">&#9654;</button>
+      <button type="button" data-hold="KeyK" data-step="350" class="pos-down" aria-label="Tilt the camera down">&#9660;</button>
+    </div>
+  </div>
+</div>
+<div id="toasts" role="status" aria-live="polite"></div>
+<div id="fade"></div>
+
+
+<dialog id="bugDialog" aria-labelledby="bugTitle" aria-describedby="bugDesc">
+  <h2 id="bugTitle"></h2>
+  <p id="bugDesc"></p>
+  <button class="opt" data-act="stomp"><strong>Stomp <span class="kbhint">(1)</span></strong><span id="stompInfo"></span></button>
+  <button class="opt" data-act="smack"><strong>Smack <span class="kbhint">(2)</span></strong><span id="smackInfo">With your hand. Works on the floor and the walls.</span></button>
+  <button class="opt" data-act="throw"><strong>Throw a coin <span class="kbhint">(3)</span></strong><span id="throwInfo"></span></button>
+  <button class="opt" data-act="donut"><strong>Ask Donut <span class="kbhint">(4)</span></strong><span id="donutInfo">She runs over and squishes it for you.</span></button>
+  <button class="opt" data-act="grenade" hidden><strong>Throw a confetti grenade <span class="kbhint">(5)</span></strong><span id="grenadeInfo"></span></button>
+  <p id="bugNote" role="status"></p>
+  <button class="ghost" id="bugLeave">Leave it alone</button>
+</dialog>
+
+<dialog id="finish" aria-labelledby="finishTitle">
+  <button id="finishClose" class="x" type="button" aria-label="Leave the conversation">&#10005;</button>
+  <h2 id="finishTitle">Mordecai</h2>
+  <p id="finishSpeech"></p>
+  <p id="finishStats"></p>
+  <div class="row">
+    <button id="keep">Leave</button>
+    <button id="again" class="ghost">Play again</button>
+  </div>
+</dialog>
+
+<dialog id="confirm" aria-labelledby="confirmTitle" aria-describedby="confirmText">
+  <h2 id="confirmTitle">Go down?</h2>
+  <p id="confirmText"></p>
+  <div class="row">
+    <button id="stay" class="ghost">Stay up here</button>
+    <button id="go">Go down</button>
+  </div>
+</dialog>
+
+<dialog id="bagDialog" aria-labelledby="bagTitle">
+  <button id="bagX" class="x" type="button" aria-label="Close the bag">&#10005;</button>
+  <h2 id="bagTitle">Bag</h2>
+  <p id="bagCoins" hidden></p>
+  <div id="bagItems"></div>
+  <p id="bagNote" role="status"></p>
+  <button id="bagClose" class="ghost" type="button">Close</button>
+</dialog>
+
+<dialog id="storeDialog" aria-labelledby="storeTitle" aria-describedby="storeDesc">
+  <button id="storeX" class="x" type="button" aria-label="Leave the store">&#10005;</button>
+  <header class="store-hero">
+    <div id="storeArt" class="storefront"></div>
+    <div>
+      <h2 id="storeTitle">First Chance for Loose Change</h2>
+      <p id="storeTag">Hats, mostly. Prices are not negotiable.</p>
+      <button id="storePause" class="ghost pausebtn" type="button">Pause animations</button>
+    </div>
+  </header>
+  <p id="storeDesc">Coins: <span id="storeCoins">0</span>. Add items to the cart, then press Buy.</p>
+  <div class="tryon" aria-hidden="true">
+    <div id="tryonArt" class="tryon-art"></div>
+    <span id="tryonName" class="tryon-text"></span>
+    <span class="cartpill"><span id="cartBadge" class="badge">0</span><span>in cart</span></span>
+  </div>
+  <div id="storeItems"></div>
+  <h3 id="cartHead">Cart</h3>
+  <ul id="cartLines" aria-labelledby="cartHead"></ul>
+  <p id="cartTotal"></p>
+  <div class="row"><button id="storeBuy" type="button">Buy</button><button id="storeEmpty" class="ghost" type="button">Empty cart</button></div>
+  <p id="storeNote" role="status"></p>
+  <button class="ghost" id="storeLeave" type="button">Leave the store</button>
+</dialog>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createShop } from './shop.js';
+import { artFor } from './item-art.js';
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ============ Sounds ============
+   Made with the Web Audio API, no sound files. Sounds so far: the visit bell (entering a place), the coin blip,
+   the stick tock, the squish, and the announcement (three game-show dings, heard on Floor 1 only). */
+let audio;
+function audioContext() {
+  audio = audio || new AudioContext();
+  if (audio.state === 'suspended') audio.resume();
+  return audio;
+}
+function tone(ctx, out, { type = 'sine', freq, start, dur, gain, attack = 0.005 }) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, start);
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.linearRampToValueAtTime(gain, start + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g); g.connect(out);
+  o.start(start); o.stop(start + dur + 0.02);
+}
+function visitSound() {                                   // soft bell
+  const ctx = audioContext(), t = ctx.currentTime + 0.02, base = 659.25;
+  [[1, 0.166, 1.9], [2.76, 0.077, 1.2], [5.4, 0.045, 0.6], [8.93, 0.026, 0.3]].forEach(([ratio, gain, dur]) =>
+    tone(ctx, ctx.destination, { freq: base * ratio, start: t, dur, gain, attack: 0.003 }));
+}
+function coinSound() {                                    // classic coin
+  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4500; lp.connect(ctx.destination);
+  tone(ctx, lp, { type: 'square', freq: 987.77,  start: t,        dur: 0.09, gain: 0.19, attack: 0.002 });
+  tone(ctx, lp, { type: 'square', freq: 1318.51, start: t + 0.08, dur: 0.5,  gain: 0.19, attack: 0.002 });
+}
+function announcementSound() {                            // three game-show dings
+  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  for (let i = 0; i < 3; i++) {
+    tone(ctx, ctx.destination, { freq: 1318.51, start: t + i * 0.17, dur: 0.9, gain: 0.16,   attack: 0.003 });
+    tone(ctx, ctx.destination, { freq: 2637.02, start: t + i * 0.17, dur: 0.5, gain: 0.0704, attack: 0.003 });
+  }
+}
+function glide(ctx, out, { from, to, start, dur, gain, attack = 0.004 }) {      // a note whose pitch slides from one frequency to another
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.setValueAtTime(from, start); o.frequency.exponentialRampToValueAtTime(to, start + dur);
+  g.gain.setValueAtTime(0.0001, start); g.gain.linearRampToValueAtTime(gain, start + attack); g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g); g.connect(out); o.start(start); o.stop(start + dur + 0.02);
+}
+function noise(ctx, out, { freq, endFreq, q = 1, start, dur, gain }) {            // a burst of random noise through a sliding filter
+  const n = Math.floor(ctx.sampleRate * (dur + 0.05)), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(freq, start); f.frequency.exponentialRampToValueAtTime(endFreq, start + dur);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, start); g.gain.linearRampToValueAtTime(gain, start + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  src.connect(f); f.connect(g); g.connect(out); src.start(start); src.stop(start + dur + 0.05);
+}
+function squishSound() {                                  // squish A: a wet squelch
+  const ctx = audioContext(), t = ctx.currentTime + 0.02, out = ctx.destination;
+  noise(ctx, out, { freq: 900, endFreq: 180, q: 2, start: t,        dur: 0.28, gain: 0.5 });
+  glide(ctx, out, { from: 140, to: 55,           start: t,        dur: 0.22, gain: 0.35 });
+  noise(ctx, out, { freq: 500, endFreq: 250, q: 3, start: t + 0.12, dur: 0.12, gain: 0.25 });
+}
+function stickSound() {                                   // a dry wooden tock
+  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  tone(ctx, ctx.destination, { freq: 196, start: t, dur: 0.14, gain: 0.3,  attack: 0.002 });
+  tone(ctx, ctx.destination, { type: 'triangle', freq: 392, start: t, dur: 0.06, gain: 0.12, attack: 0.002 });
+}
+
+function thumpSound() {                                   // a llama is hit: a dull thump
+  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  glide(ctx, ctx.destination, { from: 190, to: 60, start: t, dur: 0.16, gain: 0.4 });
+  noise(ctx, ctx.destination, { freq: 1200, endFreq: 300, q: 1, start: t, dur: 0.08, gain: 0.25 });
+}
+function burstSound() {                                   // a llama bursts: a papery pop and a bright little run of notes
+  const ctx = audioContext(), t = ctx.currentTime + 0.02, out = ctx.destination;
+  noise(ctx, out, { freq: 3200, endFreq: 900, q: 0.8, start: t, dur: 0.35, gain: 0.45 });
+  glide(ctx, out, { from: 160, to: 55, start: t, dur: 0.2, gain: 0.35 });
+  [784, 988, 1175, 1568].forEach((f, i) => tone(ctx, out, { type: 'triangle', freq: f, start: t + 0.05 + i * 0.045, dur: 0.3, gain: 0.09 }));
+}
+function rumbleSound() {                                  // the new doorway: stone sliding
+  const ctx = audioContext(), t = ctx.currentTime + 0.02, out = ctx.destination;
+  noise(ctx, out, { freq: 160, endFreq: 70, q: 1.2, start: t, dur: 2.0, gain: 0.5 });
+  glide(ctx, out, { from: 75, to: 38, start: t, dur: 2.0, gain: 0.3 });
+}
+function fillSound() {                                    // a grenade case fills with confetti
+  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  [523.25, 659.25, 783.99].forEach((f, i) => tone(ctx, ctx.destination, { type: 'triangle', freq: f, start: t + i * 0.07, dur: 0.25, gain: 0.12 }));
+}
+
+/* ============ Music ============
+   Nothing plays until the player clicks the button. Paper_Kite_Turn.mp3 must sit in the same folder as this file. */
+const music = new Audio('Paper_Kite_Turn.mp3');
+music.loop = true;
+music.volume = 0.15;
+music.preload = 'none';
+const musicBtn = $('music');
+musicBtn.onclick = () => {
+  if (music.paused) {
+    music.play()
+      .then(() => { musicBtn.textContent = 'Music off'; })
+      .catch(err => { musicBtn.textContent = 'Music on'; console.warn('Music did not play. Is Paper_Kite_Turn.mp3 in the same folder as this file?', err); });
+  } else {
+    music.pause();
+    musicBtn.textContent = 'Music on';
+  }
+};
+
+/* ============ Announcements ============
+   announce() puts a styled popup on screen and plays the announcement sound. They queue up, so two achievements
+   in a row appear one after the other. A popup stays for 8 seconds (a sticky one stays until dismissed), waits while the
+   mouse or keyboard focus is on it, and can be dismissed. They are read out by screen readers. */
+const toasts = $('toasts');
+const toastQueue = [];
+let toastBusy = false;
+function announce(label, title, text, opts = {}) {
+  const item = { label, title, text, sticky: !!opts.sticky, silent: !!opts.silent, duration: opts.duration || 8000 };
+  if (item.silent) { showToast(item); return; }                          // a silent message ("the door won't budge") has no sound to space out, so it appears at once
+  toastQueue.push(item); pumpToasts();
+}
+function pumpToasts() {
+  if (toastBusy || !toastQueue.length) return;
+  toastBusy = true;
+  const next = toastQueue.shift();
+  showToast(next);
+  if (state.floor >= 1 && !next.silent) announcementSound();               // the announcement sound belongs to Floor 1: the surface popups are silent
+  setTimeout(() => { toastBusy = false; pumpToasts(); }, 1600);
+}
+function showToast({ label, title, text, sticky, duration, speaker }) {
+  const el = document.createElement('div'); el.className = 'toast';
+  const mk = (cls, tag, txt) => { const n = document.createElement(tag); n.className = cls; n.textContent = txt; el.append(n); return n; };
+  if (speaker) {                                                         // a spoken line: the speaker (or "...."), then the words in quotes
+    el.classList.add('speech');
+    const p = document.createElement('p'); p.className = 'toast-speech';
+    const who = document.createElement('span'); who.className = 'who'; who.setAttribute('aria-hidden', 'true'); who.textContent = speaker.shown + ': ';   // what the eye sees
+    const said = document.createElement('span'); said.className = 'sr-only'; said.textContent = speaker.spoken + ' says: ';                          // what a screen reader says instead of "dot dot dot dot"
+    p.append(who, said, document.createTextNode('\u201c' + text + '\u201d')); el.append(p);
+  } else { mk('toast-label', 'p', label); mk('toast-title', 'p', title); mk('toast-text', 'p', text); }
+  const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Dismiss'; el.append(close);
+  let timer;
+  const start = ms => { clearTimeout(timer); if (!sticky) timer = setTimeout(remove, ms); };   // a sticky popup stays until dismissed
+  const remove = () => { clearTimeout(timer); el.remove(); };
+  el.dismiss = remove;
+  close.addEventListener('click', remove);
+  el.addEventListener('mouseenter', () => clearTimeout(timer)); el.addEventListener('mouseleave', () => start(4000));
+  el.addEventListener('focusin', () => clearTimeout(timer));    el.addEventListener('focusout', () => start(4000));
+  toasts.append(el); start(duration);
+}
+// A spoken line appears at once and silently, and replaces the previous spoken line, so only the latest stays on screen.
+function speak(speaker, line, opts = {}) {
+  toasts.querySelectorAll('.toast.speech').forEach(t => t.dismiss());
+  showToast({ speaker, text: line, sticky: false, duration: opts.duration || 6500 });
+}
+// Removes every popup on screen and any waiting in the queue (used when the player goes down the stairs).
+function clearToasts() { toastQueue.length = 0; toasts.querySelectorAll('.toast').forEach(t => t.dismiss()); }
+const achieved = new Set(), achievedTitles = [];
+function achieve(id, title, text) {
+  if (state.floor < 1 || achieved.has(id)) return;                      // achievements start on Floor 1: nothing is ever earned (or shown) on the surface
+  achieved.add(id); achievedTitles.push(title); announce('New achievement', title, text);
+}
+
+/* ============ Scene, camera, renderer ============ */
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 200);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.domElement.setAttribute('role', 'img');
+renderer.domElement.setAttribute('aria-label', 'A three-dimensional game world. Use the keyboard to move your character and press E to interact.');
+document.body.appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0x7088c8, 0x1b1f2e, 0.9);
+const moon = new THREE.DirectionalLight(0xaec3ff, 1.1);
+moon.position.set(-12, 22, 10); moon.castShadow = true;
+Object.assign(moon.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28 });
+scene.add(hemi, moon);
+function setEnvironment(kind) {
+  if (kind === 'surface') { scene.background = new THREE.Color(0x0b1226); scene.fog = new THREE.Fog(0x0b1226, 18, 60); hemi.color.set(0x7088c8); hemi.groundColor.set(0x1b1f2e); hemi.intensity = 0.9; moon.visible = true; }
+  else { scene.background = new THREE.Color(0x0b0912); scene.fog = new THREE.Fog(0x0b0912, 8, 36); hemi.color.set(0x8a7aa8); hemi.groundColor.set(0x2a2018); hemi.intensity = 1.4; moon.visible = false; }
+}
+setEnvironment('surface');
+
+/* ============ Collision ============
+   Boxes and circles the player and Donut cannot walk through, plus an outer boundary. resolve() pushes a body out. */
+const active = { list: [], bounds: { type: 'circle', r: 17.5 } };
+function resolve(pos, radius) {
+  for (const c of active.list) {
+    if (c.type === 'box') {
+      const hw = c.hw + radius, hd = c.hd + radius, dx = pos.x - c.x, dz = pos.z - c.z;
+      if (Math.abs(dx) < hw && Math.abs(dz) < hd) {
+        if (hw - Math.abs(dx) < hd - Math.abs(dz)) pos.x = c.x + Math.sign(dx || 1) * hw;
+        else pos.z = c.z + Math.sign(dz || 1) * hd;
+      }
+    } else {
+      const dx = pos.x - c.x, dz = pos.z - c.z, d = Math.hypot(dx, dz), min = c.r + radius;
+      if (d < min) { if (d > 0) { pos.x = c.x + dx / d * min; pos.z = c.z + dz / d * min; } else pos.x = c.x + min; }
+    }
+  }
+  const b = active.bounds;
+  if (b.type === 'circle') { const d = Math.hypot(pos.x, pos.z), max = b.r - radius; if (d > max) { pos.x *= max / d; pos.z *= max / d; } }
+  else { pos.x = Math.max(-b.hw + radius, Math.min(b.hw - radius, pos.x)); pos.z = Math.max(-b.hd + radius, Math.min(b.hd - radius, pos.z)); }
+}
+
+/* ============ The surface ============
+   A small, cold, abandoned street: snowy ground, ruined buildings round the edge, parked vehicles, bare trees,
+   snowy bushes, park benches, rubble, two sticks to pick up, and ONE building you can use: the brick building at the
+   north end with stairs going down at its foot and a sign above them. */
+const rng = mulberry32(21);
+const surface = new THREE.Group(); scene.add(surface);
+const surfaceColliders = [];
+const SNOW = 0xe8eef7;
+const stdMat = (color, roughness = 0.95) => new THREE.MeshStandardMaterial({ color, roughness });
+const snowMat = stdMat(SNOW, 1);
+function part(parent, w, h, d, color, x, y, z, ry = 0) {                  // a box that casts and receives shadows
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof color === 'number' ? stdMat(color) : color);
+  m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
+function snowCap(parent, w, d, x, y, z, ry = 0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, d), snowMat); m.position.set(x, y, z); m.rotation.y = ry; parent.add(m);
+}
+const _up = new THREE.Vector3(0, 1, 0);
+function bar(parent, x1, y1, z1, x2, y2, z2, r, material) {               // a thin rod between two points
+  const a = new THREE.Vector3(x1, y1, z1), d = new THREE.Vector3(x2 - x1, y2 - y1, z2 - z1), len = d.length();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), material);
+  m.position.copy(a).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(_up, d.normalize()); m.castShadow = true; parent.add(m); return m;
+}
+function wheel(g, r, w, x, y, z) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 14).rotateZ(Math.PI / 2), stdMat(0x15171c)); m.position.set(x, y, z); m.castShadow = true; g.add(m);
+}
+// Puts a prop in the world. collider is { hw, hd } for a box (half width and half depth) or { r } for a circle.
+const propCounts = {};
+function placeProp(g, kind, x, z, ry = 0, collider = null) {
+  g.position.set(x, 0, z); g.rotation.y = ry; g.userData.kind = kind; surface.add(g);
+  propCounts[kind] = (propCounts[kind] || 0) + 1;
+  if (collider) {
+    const turned = Math.abs(Math.sin(ry)) > 0.7;                        // turned a quarter turn: width and depth swap
+    if (collider.r) surfaceColliders.push({ type: 'circle', x, z, r: collider.r });
+    else surfaceColliders.push({ type: 'box', x, z, hw: turned ? collider.hd : collider.hw, hd: turned ? collider.hw : collider.hd });
+  }
+  return g;
+}
+
+// The ground is a disc with a rectangular hole cut in it for the stairwell. (A shape's y becomes the world's -z.)
+const groundShape = new THREE.Shape(); groundShape.absarc(0, 0, 26, 0, Math.PI * 2, false);
+const hole = new THREE.Path(); hole.moveTo(-1.6, 10); hole.lineTo(-1.6, 14); hole.lineTo(1.6, 14); hole.lineTo(1.6, 10); hole.closePath();
+groundShape.holes.push(hole);
+const ground = new THREE.Mesh(new THREE.ShapeGeometry(groundShape, 64).rotateX(-Math.PI / 2), stdMat(0xcfdbea, 1));
+ground.receiveShadow = true; surface.add(ground);
+
+// --- The building with the stairs: brick, windows, snow on the roof ---
+const brick = 0x5a3a35, darkStone = stdMat(0x2a2e3c), stoneMat = stdMat(0x4a5066);
+part(surface, 16, 7, 6.4, brick, 0, 3.5, -17.2);
+snowCap(surface, 16.4, 6.8, 0, 7.12, -17.2);
+const glass = new THREE.MeshStandardMaterial({ color: 0x0e121c, roughness: 0.3 });
+for (const x of [-6.8, -5, 5, 6.8]) for (const y of [3.2, 5.4]) {
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.5), glass); w.position.set(x, y, -13.98); surface.add(w);
+  snowCap(surface, 1.5, 0.3, x, y - 0.8, -13.9);
+}
+surfaceColliders.push({ type: 'box', x: 0, z: -17.2, hw: 8, hd: 3.2 });
+
+// --- The stairs going down, in a stairwell at the foot of the wall ---
+for (const sx of [-1, 1]) { part(surface, 0.3, 3.8, 4.2, darkStone, sx * 1.75, -1.9, -12); snowCap(surface, 0.5, 4.2, sx * 1.75, 0.06, -12); }
+for (let i = 0; i < 8; i++) {                                                     // eight steps, each 0.4 lower than the last
+  const top = -0.4 * (i + 1);
+  part(surface, 3.2, 3.8, 0.5, stoneMat, 0, top - 1.9, -10 - 0.5 * (i + 0.5));
+}
+part(surface, 3.6, 3.8, 0.6, darkStone, 0, -1.9, -14.3);                          // the wall continues below ground
+const doorGlow = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.6), new THREE.MeshBasicMaterial({ color: 0xfff1c8 }));
+doorGlow.position.set(0, -1.9, -13.94); surface.add(doorGlow);                    // light at the bottom of the stairs
+for (const sx of [-1, 1]) part(surface, 0.25, 2.8, 0.3, darkStone, sx * 1.1, -1.8, -13.9);
+part(surface, 2.45, 0.3, 0.3, darkStone, 0, -0.4, -13.9);
+surfaceColliders.push({ type: 'box', x: 0, z: -12, hw: 1.85, hd: 2.05 });          // the stairwell: nobody walks into it by accident
+const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff1c8, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 3.3, 24, 1, true), beamMat); beam.position.set(0, 1.15, -12); surface.add(beam);   // a glow rising out of the stairwell, stopping below the sign
+const stairLight = new THREE.PointLight(0xfff0c0, 9, 0); stairLight.position.set(0, -1.5, -12.8); surface.add(stairLight);
+const lipLight = new THREE.PointLight(0xfff0c0, 4, 0); lipLight.position.set(0, 2.2, -11); surface.add(lipLight);
+
+// --- The inscription above the stairs, on a stone plaque, with a lamp on each side ---
+function makeInscription(lines) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 256; const x = c.getContext('2d');
+  x.fillStyle = '#1f1d28'; x.fillRect(0, 0, 1024, 256);
+  x.strokeStyle = '#f2c66d'; x.lineWidth = 8; x.strokeRect(6, 6, 1012, 244);
+  x.textAlign = 'center'; x.fillStyle = '#f2c66d'; x.font = 'bold 80px Georgia, "Times New Roman", serif';
+  x.fillText(lines[0], 512, 116); x.fillText(lines[1], 512, 214);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  return new THREE.Mesh(new THREE.PlaneGeometry(6.4, 1.6), new THREE.MeshBasicMaterial({ map: tex }));
+}
+const INSCRIPTION = "Lasciate ogne speranza, voi ch'intrate";
+const plaque = makeInscription(['Lasciate ogne speranza,', "voi ch'intrate"]); plaque.position.set(0, 3.6, -13.96); surface.add(plaque);
+for (const sx of [-1, 1]) {
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.3), new THREE.MeshBasicMaterial({ color: 0xffb36b })); lamp.position.set(sx * 3.9, 3.6, -13.88); surface.add(lamp);
+  const l = new THREE.PointLight(0xffa860, 6, 0); l.position.set(sx * 3.9, 3.4, -13.3); surface.add(l);
+}
+
+// --- Ruined buildings round the edge (just scenery: nothing to enter) ---
+for (const [x, z, ry] of [[-22, -2, Math.PI / 2], [22, 5, -Math.PI / 2]]) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; surface.add(g);
+  part(g, 16, 8, 2, 0x4e3a3a, 0, 4, 0); snowCap(g, 16.4, 2.4, 0, 8.12, 0);
+  for (const wx of [-6, -3, 0, 3, 6]) for (const wy of [2.6, 5.4]) { const w = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.4), glass); w.position.set(wx, wy, 1.01); g.add(w); }
+}
+for (let i = 0; i < 18; i++) {                                                    // broken wall chunks
+  const a = (i / 18) * Math.PI * 2 + rng() * 0.2, r = 20 + rng() * 3;
+  const w = 2.5 + rng() * 4, h = 2 + rng() * 6, d = 1 + rng() * 1.5, x = Math.sin(a) * r, z = Math.cos(a) * r;
+  if ((z < -16 && Math.abs(x) < 11) || Math.abs(x) > 19.5 && Math.abs(z) < 12) continue;   // keep clear of the stairs building and the facades
+  part(surface, w, h, d, 0x262b3a, x, h / 2, z, a); snowCap(surface, w, d, x, h + 0.12, z, a);
+}
+
+// --- Rubble ---
+for (const [x, z, hw, hd, h] of [[-1, -6.5, 1.4, 1.0, 0.9], [8, -6.5, 1.5, 1.2, 1.0], [-8, -2, 1.8, 1.3, 1.1]]) {
+  const g = new THREE.Group();
+  for (let k = 0; k < 4; k++) {
+    const w = hw * (0.7 + rng() * 0.7), d = hd * (0.7 + rng() * 0.7), hh = h * (0.5 + rng() * 0.7);
+    const px = (rng() - 0.5) * hw * 0.6, pz = (rng() - 0.5) * hd * 0.6;
+    part(g, w, hh, d, 0x4a4f5e, px, hh / 2, pz, rng() * 0.3); snowCap(g, w, d, px, hh + 0.12, pz);
+  }
+  placeProp(g, 'rubble', x, z, 0, { hw, hd });
+}
+
+// --- Vehicles: three cars, a bus and a bike, all abandoned under the snow ---
+function makeCar(color) {
+  const g = new THREE.Group();
+  part(g, 1.9, 0.75, 4.4, color, 0, 0.62, 0);
+  part(g, 1.7, 0.6, 2.3, 0x1c2230, 0, 1.28, -0.2);                               // the cabin: dark glass
+  part(g, 1.75, 0.18, 2.35, SNOW, 0, 1.66, -0.2);                                // snow on the roof
+  part(g, 1.5, 0.1, 1.1, SNOW, 0, 1.03, 1.35);                                   // snow on the bonnet
+  for (const sx of [-1, 1]) for (const sz of [-1.45, 1.45]) wheel(g, 0.35, 0.25, sx * 0.95, 0.35, sz);
+  return g;
+}
+placeProp(makeCar(0x6f8fb0), 'car', -11.5, 7, 0, { hw: 1.1, hd: 2.3 });
+placeProp(makeCar(0x3b3f4a), 'car', -9, -7.5, Math.PI / 2, { hw: 1.1, hd: 2.3 });
+placeProp(makeCar(0x5a2a2a), 'car', 4.5, 9.5, 0, { hw: 1.1, hd: 2.3 });
+function makeBus() {
+  const g = new THREE.Group();
+  part(g, 3.0, 2.7, 11, 0xb8c2d0, 0, 1.75, 0);
+  part(g, 3.04, 0.35, 11.04, 0x2d5a8a, 0, 1.0, 0);                               // a blue stripe along the side
+  part(g, 3.04, 0.95, 10, 0x1b2230, 0, 2.35, -0.3);                              // the windows
+  part(g, 2.6, 1.0, 0.1, 0x1b2230, 0, 2.3, 5.52);                                // the windscreen
+  part(g, 1.8, 0.3, 0.08, 0x2a2a2a, 0, 3.0, 5.52);                               // the route sign, dark now
+  snowCap(g, 3.0, 11, 0, 3.22, 0);
+  for (const sx of [-1, 1]) for (const sz of [-3.6, 3.6]) wheel(g, 0.5, 0.35, sx * 1.5, 0.5, sz);
+  return g;
+}
+placeProp(makeBus(), 'bus', 11.8, 2, 0, { hw: 1.55, hd: 5.6 });
+function makeBike() {
+  const g = new THREE.Group(), lean = new THREE.Group(); lean.rotation.z = 0.32; g.add(lean);
+  const frame = stdMat(0x2d6a8f, 0.5), metal = stdMat(0x2a2d33, 0.6);
+  for (const z of [-0.55, 0.55]) { const w = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 8, 20).rotateY(Math.PI / 2), metal); w.position.set(0, 0.37, z); w.castShadow = true; lean.add(w); }
+  const RH = [0, 0.37, -0.55], BB = [0, 0.28, -0.1], ST = [0, 0.78, -0.2], HT = [0, 0.8, 0.38], FH = [0, 0.37, 0.55];
+  for (const [a, b] of [[RH, BB], [BB, ST], [ST, HT], [BB, HT], [RH, ST], [HT, FH]]) bar(lean, ...a, ...b, 0.02, frame);
+  bar(lean, -0.26, 0.9, 0.38, 0.26, 0.9, 0.38, 0.018, metal);                    // handlebars
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.22), metal); seat.position.set(0, 0.82, -0.22); lean.add(seat);
+  return g;
+}
+placeProp(makeBike(), 'bike', -12.2, -1.5, 0.8, { r: 0.6 });
+
+// --- Bare trees, snowy bushes and park benches ---
+function makeTree() {
+  const g = new THREE.Group(), bark = stdMat(0x3b2b20), h = 3.4;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, h, 8), bark); trunk.position.y = h / 2; trunk.castShadow = true; g.add(trunk);
+  for (let i = 0; i < 6; i++) {                                                  // branches, each with a twig
+    const a = (i / 6) * Math.PI * 2 + rng() * 0.5, len = 1.4 + rng() * 1.1, tilt = 0.6 + rng() * 0.5, y0 = h * (0.62 + rng() * 0.3);
+    const ex = Math.sin(a) * len * Math.sin(tilt), ey = y0 + len * Math.cos(tilt) * 0.9, ez = Math.cos(a) * len * Math.sin(tilt);
+    bar(g, 0, y0, 0, ex, ey, ez, 0.06, bark);
+    bar(g, ex, ey, ez, ex + Math.sin(a + 0.6) * 0.6, ey + 0.4, ez + Math.cos(a + 0.6) * 0.6, 0.03, bark);
+  }
+  const drift = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), snowMat); drift.scale.set(1, 0.3, 1); drift.position.y = 0.08; g.add(drift);
+  return g;
+}
+for (const [x, z] of [[-13, -1], [-6.5, -11], [6.5, -11], [-3.5, 3.5], [13.5, -8.5], [-10.5, 12.5], [2.5, -3.5]]) placeProp(makeTree(), 'tree', x, z, rng() * 6, { r: 0.45 });
+function makeBush() {
+  const g = new THREE.Group(), leaf = stdMat(0x213a2c);
+  for (const [x, y, z, r] of [[0, 0.45, 0, 0.6], [0.5, 0.38, 0.2, 0.45], [-0.45, 0.4, -0.1, 0.5]]) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), leaf); b.position.set(x, y, z); b.scale.y = 0.8; b.castShadow = true; g.add(b);
+    const c = new THREE.Mesh(new THREE.SphereGeometry(r * 0.85, 12, 8), snowMat); c.position.set(x, y + r * 0.5, z); c.scale.y = 0.35; g.add(c);
+  }
+  return g;
+}
+for (const [x, z] of [[-4.5, -9.5], [4.5, -9.5], [-8, 2.5], [7.5, -1], [-1.5, 6.5], [9, 11]]) placeProp(makeBush(), 'bush', x, z, 0, { r: 0.8 });
+function makeBench() {
+  const g = new THREE.Group(), wood = 0x6b4a2f, iron = 0x2a2a2a;
+  part(g, 1.8, 0.08, 0.5, wood, 0, 0.45, 0); part(g, 1.8, 0.5, 0.08, wood, 0, 0.78, -0.24);
+  for (const sx of [-0.8, 0.8]) part(g, 0.08, 0.45, 0.5, iron, sx, 0.22, 0);
+  snowCap(g, 1.8, 0.5, 0, 0.55, 0);
+  return g;
+}
+placeProp(makeBench(), 'bench', -5, -5, 0, { hw: 0.95, hd: 0.4 });
+placeProp(makeBench(), 'bench', 4.5, 0.5, Math.PI, { hw: 0.95, hd: 0.4 });
+placeProp(makeBench(), 'bench', -12.5, -6, Math.PI / 2, { hw: 0.95, hd: 0.4 });
+
+// --- Falling snow: a cloud of round dots that drift down and start again at the top. It stands still for reduced motion. ---
+const SNOW_N = 700, snowPos = new Float32Array(SNOW_N * 3);
+for (let i = 0; i < SNOW_N; i++) { snowPos[i * 3] = (rng() - 0.5) * 48; snowPos[i * 3 + 1] = rng() * 16; snowPos[i * 3 + 2] = (rng() - 0.5) * 48; }
+const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+const flake = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d');
+  const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c);
+})();
+const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ map: flake, color: 0xffffff, size: 5, sizeAttenuation: false, transparent: true, opacity: 0.9, depthWrite: false }));
+surface.add(snow);
+
+// --- Sticks to pick up (no coins on the surface: those start on Floor 1) ---
+const STICK_SPOTS = [[-11.2, -3.4, 0.6], [7, 13.5, -0.4]];
+const wood = stdMat(0x7a5535);
+const sticks = STICK_SPOTS.map(([x, z, ry]) => {
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 1.1, 6).rotateZ(Math.PI / 2), wood); m.position.y = 0.08; m.castShadow = true; g.add(m);
+  bar(g, 0.1, 0.09, 0, 0.38, 0.22, 0.3, 0.03, wood);
+  const mark = new THREE.Mesh(new THREE.CircleGeometry(0.75, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.25, depthWrite: false }));
+  mark.position.y = 0.03; g.add(mark);                                                       // a soft glow so it is easy to spot in the snow
+  g.position.set(x, 0, z); g.rotation.y = ry; surface.add(g); return g;
+});
+
+/* ============ Floor 1: the hallways ============
+   Seven spaces joined into one route: the entry hall, hall A (east), hall B (north), hall D (west) to the great door
+   and the safe room beyond it, and hall C, which branches east to a dead-end side room. Everything is enclosed:
+   floor, walls and ceiling. The walls are worked out from the floor plan: wherever a walkable 2 x 2 square has no
+   walkable neighbour on one side, a wall goes up on that side. */
+const floor1 = new THREE.Group(); floor1.visible = false; scene.add(floor1);
+const H1 = 4;                                                          // ceiling height
+const ROOMS = {                                                        // each is [x0, x1, z0, z1], in even numbers
+  entry: [-24, -12, 8, 18], hallA: [-12, 6, 10, 14], hallB: [2, 6, -12, 14], hallC: [6, 18, 0, 4],
+  side: [18, 26, -2, 6], hallD: [-10, 6, -12, -8], safe: [-24, -10, -18, -2],
+  annexA: [-4, 0, -26, -12], shop: [0, 8, -20, -14], annexB: [0, 20, -26, -22], annexC: [16, 20, -22, -12], deep: [20, 34, -20, -10]   // the new halls, behind a doorway in hall D's south wall
+};
+const floor1Colliders = [];
+const levelSolids = [];                                                // everything the camera must not pass through
+const cellKey = (i, j) => i + ',' + j;
+const walkable = new Set();
+for (const [x0, x1, z0, z1] of Object.values(ROOMS)) for (let x = x0; x < x1; x += 2) for (let z = z0; z < z1; z += 2) walkable.add(cellKey(x / 2, z / 2));
+
+// Wall edges: 'px' means a wall that faces +x (into a space to its east), and so on.
+const edges = {}, wallSpans = {};                                      // wallSpans: where each wall really exists (the bugs need this)
+const addEdge = (facing, line, a, b) => { (edges[facing + '|' + line] = edges[facing + '|' + line] || []).push([a, b]); };
+for (const k of walkable) {
+  const [i, j] = k.split(',').map(Number), x = i * 2, z = j * 2;
+  if (!walkable.has(cellKey(i - 1, j))) addEdge('px', x, z, z + 2);
+  if (!walkable.has(cellKey(i + 1, j))) addEdge('nx', x + 2, z, z + 2);
+  if (!walkable.has(cellKey(i, j - 1))) addEdge('pz', z, x, x + 2);
+  if (!walkable.has(cellKey(i, j + 1))) addEdge('nz', z + 2, x, x + 2);
+}
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x3d384c, roughness: 1 });
+for (const [k, spans] of Object.entries(edges)) {
+  const [facing, lineText] = k.split('|'), line = +lineText;
+  spans.sort((p, q) => p[0] - q[0]);
+  const merged = [];
+  for (const s of spans) { const last = merged[merged.length - 1]; if (last && last[1] === s[0]) last[1] = s[1]; else merged.push([s[0], s[1]]); }   // join neighbouring pieces
+  wallSpans[k] = merged;
+  for (const [a, b] of merged) {
+    const len = b - a, mid = (a + b) / 2, t = 0.25, ext = 0.25;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(len, H1), wallMat);
+    if (facing === 'px')      { m.rotation.y = Math.PI / 2;  m.position.set(line, H1 / 2, mid); floor1Colliders.push({ type: 'box', x: line - t, z: mid, hw: t, hd: len / 2 + ext, wall: true }); }
+    else if (facing === 'nx') { m.rotation.y = -Math.PI / 2; m.position.set(line, H1 / 2, mid); floor1Colliders.push({ type: 'box', x: line + t, z: mid, hw: t, hd: len / 2 + ext, wall: true }); }
+    else if (facing === 'pz') {                              m.position.set(mid, H1 / 2, line); floor1Colliders.push({ type: 'box', x: mid, z: line - t, hw: len / 2 + ext, hd: t, wall: true }); }
+    else                      { m.rotation.y = Math.PI;      m.position.set(mid, H1 / 2, line); floor1Colliders.push({ type: 'box', x: mid, z: line + t, hw: len / 2 + ext, hd: t, wall: true }); }
+    floor1.add(m); levelSolids.push(m);
+  }
+}
+// Floors and ceilings. A ceiling is a single-sided plane facing down, so it is invisible from above.
+const stoneFloor = new THREE.MeshStandardMaterial({ color: 0x302d3b, roughness: 1 });
+const roomFloors = { entry: 0x34303f, side: 0x2f3340, safe: 0x3b3128, shop: 0x3a2f2a, deep: 0x2c2a3a };
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0x25222f, roughness: 1 });
+for (const [name, [x0, x1, z0, z1]] of Object.entries(ROOMS)) {
+  const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const f = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roomFloors[name] ? new THREE.MeshStandardMaterial({ color: roomFloors[name], roughness: 1 }) : stoneFloor);
+  f.rotation.x = -Math.PI / 2; f.position.set(cx, 0, cz); floor1.add(f); levelSolids.push(f);
+  const c = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilMat);
+  c.rotation.x = Math.PI / 2; c.position.set(cx, H1, cz); floor1.add(c); levelSolids.push(c);
+}
+// Light: a warm lamp in the middle of each room and halfway along each hall, plus wall torches (just glowing blocks).
+for (const [x, z, power] of [[-18, 13, 40], [22, 2, 30], [-17, -10, 45], [-3, 12, 25], [4, 0, 25], [-2, -10, 25], [12, 2, 20], [-2, -19, 25], [4, -17, 45], [17, -23, 30], [27, -15, 45]]) {
+  const l = new THREE.PointLight(0xffb070, power, 0); l.position.set(x, 3.3, z); floor1.add(l);
+}
+const torchMat = new THREE.MeshBasicMaterial({ color: 0xffb36b });
+for (const [x, z] of [[-23.8, 10.5], [-23.8, 15.5], [-14, 8.2], [-8, 10.2], [-2, 13.8], [2.2, 6], [5.8, -2], [12, 0.2], [14, 3.8], [-6, -11.8], [0, -8.2], [25.8, 2], [-23.8, -14], [-23.8, -6], [-12, -17.8], [-3.8, -18], [-0.2, -24], [3, -19.8], [10, -25.8], [16.2, -16], [26, -10.2], [33.8, -15]]) {
+  const t = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.5, 0.25), torchMat); t.position.set(x, 2.4, z); floor1.add(t);
+}
+function makeSign(title, subtitle) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 256; const x = c.getContext('2d');
+  x.fillStyle = '#1f1730'; x.fillRect(0, 0, 1024, 256);
+  x.strokeStyle = '#f2c66d'; x.lineWidth = 10; x.strokeRect(5, 5, 1014, 246);
+  x.textAlign = 'center'; x.fillStyle = '#f2c66d'; x.font = 'bold 84px system-ui, sans-serif'; x.fillText(title, 512, 118);
+  x.fillStyle = '#f4e6c8'; x.font = '44px system-ui, sans-serif'; x.fillText(subtitle, 512, 196);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshBasicMaterial({ map: tex }));
+}
+const entrySign = makeSign('Floor 1', 'Welcome, Crawler'); entrySign.position.set(-23.95, 2.5, 13); entrySign.rotation.y = Math.PI / 2; floor1.add(entrySign);
+
+// --- The great door: a stone frame and two heavy carved leaves, in the wall between hall D and the safe room ---
+const doorWood = stdMat(0x3b2a1f), doorTrim = stdMat(0xb08d57, 0.6), frameStone = stdMat(0x4a4660);
+const greatDoor = { locked: true, open: 0, leaves: [], collider: { type: 'box', x: -10, z: -10, hw: 0.45, hd: 2.0, wall: true } };
+(function buildGreatDoor() {
+  const g = new THREE.Group(); g.position.set(-10, 0, -10); g.rotation.y = Math.PI / 2;          // built facing +z, then turned to face east
+  for (const sx of [-1, 1]) levelSolids.push(part(g, 0.7, 4.0, 1.0, frameStone, sx * 2.35, 2.0, 0));   // the two sides of the frame
+  levelSolids.push(part(g, 5.4, 0.7, 1.0, frameStone, 0, 3.65, 0));                                    // the top of the frame (the camera cannot pass through these)
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group(); pivot.position.set(sx * 2, 0, 0); g.add(pivot);
+    const leaf = part(pivot, 2.0, 3.3, 0.4, doorWood, -sx * 1.0, 1.65, 0);
+    for (const y of [0.7, 1.65, 2.6]) part(pivot, 1.6, 0.16, 0.08, doorTrim, -sx * 1.0, y, 0.22);   // carved bands
+    part(pivot, 0.16, 2.6, 0.08, doorTrim, -sx * 1.0, 1.65, 0.22);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 16), doorTrim); ring.position.set(-sx * 0.3, 1.5, 0.26); pivot.add(ring);
+    greatDoor.leaves.push({ pivot, side: sx });
+    levelSolids.push(leaf);
+  }
+  floor1.add(g); floor1Colliders.push(greatDoor.collider);
+})();
+function updateDoor(dt) {                                                                          // swings open (away from the player) once unlocked
+  if (greatDoor.locked || greatDoor.open >= 1) return;
+  greatDoor.open = Math.min(1, greatDoor.open + dt / 1.6);
+  const e = 1 - Math.pow(1 - greatDoor.open, 3);
+  for (const l of greatDoor.leaves) l.pivot.rotation.y = -l.side * e * Math.PI * 0.48;
+}
+
+// --- Safe room dressing and the side room's crates ---
+const rug = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshStandardMaterial({ color: 0x5a2a2a, roughness: 1 }));
+rug.rotation.x = -Math.PI / 2; rug.position.set(-18, 0.02, -10); floor1.add(rug);
+levelSolids.push(part(floor1, 2.2, 0.8, 1.2, 0x5a4330, -20.8, 0.4, -14)); floor1Colliders.push({ type: 'box', x: -20.8, z: -14, hw: 1.1, hd: 0.6 });
+for (const [x, z] of [[24.6, 4.6], [24.9, 3.2]]) { levelSolids.push(part(floor1, 1.2, 1.2, 1.2, 0x5a4330, x, 0.6, z)); floor1Colliders.push({ type: 'box', x, z, hw: 0.6, hd: 0.6 }); }
+
+// --- The new halls. Their doorway is in the south wall of hall D, and a slab of wall fills it until the first talk with Mordecai is over ---
+const annexSlab = new THREE.Mesh(new THREE.BoxGeometry(4, H1, 0.5), wallMat); annexSlab.position.set(-2, H1 / 2, -12.25); floor1.add(annexSlab); levelSolids.push(annexSlab);
+const annexSlabCollider = { type: 'box', x: -2, z: -12.25, hw: 2.25, hd: 0.25, wall: true }; floor1Colliders.push(annexSlabCollider);
+const annexFrame = new THREE.Group(); annexFrame.visible = false; floor1.add(annexFrame);       // the stone frame appears as the slab sinks
+const annexDoor = { opening: false, t: 0, done: false };
+const annexFrameParts = [part(annexFrame, 5, 0.8, 0.9, frameStone, -2, 3.6, -12), part(annexFrame, 0.5, 3.2, 0.9, frameStone, -4.25, 1.6, -12), part(annexFrame, 0.5, 3.2, 0.9, frameStone, 0.25, 1.6, -12)];
+const annexSign = makeSign('Party Wing', 'Mind the confetti'); annexSign.scale.setScalar(0.6); annexSign.position.set(-2, 2.5, -25.95); floor1.add(annexSign);   // placeholder wording
+function openAnnexDoor() {                                                                         // called once, when the first talk with Mordecai ends
+  if (annexDoor.opening) return;
+  annexDoor.opening = true; annexFrame.visible = true; levelSolids.push(...annexFrameParts);
+  if (!reducedMotion) rumbleSound();
+  announce('New doorway', 'The wall slides away', 'A new doorway has opened in the south wall of the long hall.', { silent: true, duration: 9000 });
+}
+function updateAnnexDoor(dt) {                                                                     // the slab sinks into the floor
+  if (!annexDoor.opening || annexDoor.done) return;
+  annexDoor.t = reducedMotion ? 1 : Math.min(1, annexDoor.t + dt / 2.2);
+  const e = annexDoor.t * annexDoor.t * (3 - 2 * annexDoor.t);
+  annexSlab.position.y = H1 / 2 - e * (H1 + 0.2);
+  if (annexDoor.t >= 1) {
+    annexDoor.done = true;
+    floor1.remove(annexSlab); levelSolids.splice(levelSolids.indexOf(annexSlab), 1); floor1Colliders.splice(floor1Colliders.indexOf(annexSlabCollider), 1);
+    floor1Colliders.push({ type: 'box', x: -4.25, z: -12, hw: 0.25, hd: 0.45, wall: true }, { type: 'box', x: 0.25, z: -12, hw: 0.25, hd: 0.45, wall: true });   // the two posts
+    interactables.push(storeSpot);
+  }
+}
+
+// --- The store: a counter and a shelf of goods along the east wall of its room ---
+const storeSpot = { name: 'Store', x: 5.0, z: -17, radius: 3.2, prompt: 'Browse the store', action: () => openStore() };
+(function buildStore() {
+  levelSolids.push(part(floor1, 0.9, 1.0, 4.0, 0x5a4330, 6.5, 0.5, -17)); floor1Colliders.push({ type: 'box', x: 6.5, z: -17, hw: 0.45, hd: 2.0 });
+  levelSolids.push(part(floor1, 0.4, 2.6, 5.0, 0x3b2a1f, 7.75, 1.3, -17)); floor1Colliders.push({ type: 'box', x: 7.75, z: -17, hw: 0.2, hd: 2.5 });
+  const blue = stdMat(0x5aa9e6, 0.35), purple = stdMat(0x9b5de5, 0.6), red = stdMat(0xc23b3b, 0.7), steel = stdMat(0xb8bcc6, 0.35), plank = 0x4a3524;
+  for (const y of [0.9, 1.5, 2.1]) part(floor1, 0.35, 0.06, 5.0, plank, 7.4, y, -17);
+  for (let i = 0; i < 8; i++) {
+    const z = -19 + i * 0.55, add = (m, y) => { m.position.set(7.4, y, z); floor1.add(m); };
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 10), blue), 1.08);                        // water bottles
+    add(new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 10), purple), 1.64);                               // hats
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.12), i % 2 ? red : steel), 2.2);                    // grenade cases and nail files
+  }
+  const sign = makeSign('First Chance', 'for Loose Change'); sign.scale.setScalar(0.5); sign.position.set(7.95, 3.2, -17); sign.rotation.y = -Math.PI / 2; floor1.add(sign);
+})();
+
+// --- Coins start here, on Floor 1: none on the surface ---
+const coinGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 24).rotateX(Math.PI / 2);
+const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd34d, emissive: 0x553d00, metalness: 0.3, roughness: 0.35 });
+const coins = [[-4, 12], [4, 4], [12, 2], [22, 2], [-2, -10]].map(([x, z]) => { const c = new THREE.Mesh(coinGeo, coinMat); c.position.set(x, 1, z); c.castShadow = true; floor1.add(c); return c; });
+
+/* ---- The bug's shape (built from simple shapes, see bug-preview.html) ---- */
+const BUG_COLORS = {
+  brown: { label: 'dark brown',   shell: 0x4a2c17, legs: 0x241309 },
+  green: { label: 'poison green', shell: 0x62dc1e, legs: 0x2b6a0d },
+  blue:  { label: 'dark blue',    shell: 0x1e3f9a, legs: 0x0f2152 }
+};
+
+function makeBug(colorKey, size = 0.6) {
+  const c = BUG_COLORS[colorKey];
+  const shellMat = new THREE.MeshStandardMaterial({ color: c.shell, roughness: 0.35, metalness: 0.15 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: c.legs, roughness: 0.6 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xf4e6c8, roughness: 0.4 });
+
+  const bug = new THREE.Group();              // the root: position and rotate this
+  const rig = new THREE.Group();              // everything that squishes
+  rig.position.y = 0.1;
+  bug.add(rig);
+
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), shellMat);
+  shell.scale.set(0.8, 0.76, 1.0);
+  rig.add(shell);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), darkMat);
+  head.position.set(0, 0.1, 0.5);
+  head.scale.set(1, 0.8, 1);
+  rig.add(head);
+
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), eyeMat);
+    eye.position.set(side * 0.09, 0.15, 0.64);
+    rig.add(eye);
+  }
+
+  const legs = [];
+  [0.25, 0, -0.25].forEach((z, row) => {
+    for (const side of [-1, 1]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(side * 0.34, 0.06, z);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.018, 0.3, 6), darkMat);
+      leg.geometry.translate(0, 0.15, 0);
+      leg.rotation.z = -side * (Math.PI / 2 + 0.6);
+      pivot.add(leg);
+      const base = -side * 0.4 * (z / 0.25);
+      pivot.rotation.y = base;
+      rig.add(pivot);
+      legs.push({ pivot, base, phase: (row + (side > 0 ? 1 : 0)) % 2 * Math.PI });
+    }
+  });
+
+  const antennae = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.06, 0.16, 0.62);
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.32, 6), darkMat);
+    ant.geometry.translate(0, 0.16, 0);
+    ant.rotation.x = Math.PI / 2 - 0.35;
+    pivot.add(ant);
+    pivot.rotation.y = side * 0.4;
+    rig.add(pivot);
+    antennae.push({ pivot, base: side * 0.4, phase: side * 1.3 });
+  }
+
+  const splat = new THREE.Mesh(
+    new THREE.CircleGeometry(0.55, 20).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: c.shell, transparent: true, opacity: 0.9, depthWrite: false })
+  );
+  splat.position.y = 0.012;
+  splat.scale.set(1.3, 1, 1);
+  splat.visible = false;
+  bug.add(splat);
+
+  bug.traverse(o => { if (o.isMesh && o !== splat) o.castShadow = true; });
+  bug.scale.setScalar(size);
+  bug.userData = {
+    colorKey, rig, legs, antennae, splat, state: 'idle', t: 0, phase: Math.random() * 6.28,
+    s: 0, z: 0, theta: 0, speed: 0.5 + Math.random() * 0.4, turnTimer: 0   // where it is on the hallway surface
+  };
+  return bug;
+}
+
+
+/* ============ Bugs ============
+   Six bugs crawl over the floors and walls of the four hallways. A bug lives on a "track": one straight hallway whose
+   left wall, floor and right wall are unrolled into a flat strip (s runs across it, u runs along the hallway). Walls only
+   count where they really exist (not across a doorway or a junction). Squish one and it comes back somewhere else. */
+const BUG_SIZE = 0.9, BUG_COUNT = 6, BUG_RESPAWN = 8;                    // BUG_SIZE is the body length in world units
+const TRACKS = [                                                          // axis: the way the hallway runs; c0 to c1: its width; wallA and wallB name the two long walls
+  { name: 'hall A', axis: 'x', u0: -12, u1: 6,  c0: 10,  c1: 14, wallA: 'pz|10',  wallB: 'nz|14' },
+  { name: 'hall B', axis: 'z', u0: -12, u1: 14, c0: 2,   c1: 6,  wallA: 'px|2',   wallB: 'nx|6'  },
+  { name: 'hall C', axis: 'x', u0: 6,   u1: 18, c0: 0,   c1: 4,  wallA: 'pz|0',   wallB: 'nz|4'  },
+  { name: 'hall D', axis: 'x', u0: -10, u1: 6,  c0: -12, c1: -8, wallA: 'pz|-12', wallB: 'nz|-8' }
+];
+const trackWidth = T => T.c1 - T.c0;
+const trackSpan = T => 2 * H1 + trackWidth(T);                           // the length of the unrolled strip: wall + floor + wall
+const _bp = new THREE.Vector3(), _bn = new THREE.Vector3(), _bt = new THREE.Vector3(), _ba = new THREE.Vector3();
+const _bf = new THREE.Vector3(), _bx = new THREE.Vector3(), _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion();
+// Turns a spot on the strip (s, u) into a real 3D point, the surface's normal, the way "across" runs and the way "along" runs.
+function surfaceAt(T, s, u, outPos, outUp, outTan, outAxis) {
+  const W = trackWidth(T), along = T.axis === 'x';
+  outAxis.set(along ? 1 : 0, 0, along ? 0 : 1);
+  if (s < H1)          { const c = T.c0, y = H1 - s;      outPos.set(along ? u : c, y, along ? c : u); outUp.set(along ? 0 : 1, 0, along ? 1 : 0);   outTan.set(0, -1, 0); }                       // wall A, running down
+  else if (s < H1 + W) { const c = T.c0 + (s - H1);       outPos.set(along ? u : c, 0, along ? c : u); outUp.set(0, 1, 0);                           outTan.set(along ? 0 : 1, 0, along ? 1 : 0); } // the floor
+  else                 { const c = T.c1, y = s - H1 - W;  outPos.set(along ? u : c, y, along ? c : u); outUp.set(along ? 0 : -1, 0, along ? -1 : 0); outTan.set(0, 1, 0); }                        // wall B, running up
+}
+const wallExists = (T, which, u) => (wallSpans[which === 'A' ? T.wallA : T.wallB] || []).some(([a, b]) => u >= a + 0.35 && u <= b - 0.35);
+const bugOnFloor = bug => { const T = bug.userData.track, s = bug.userData.s; return s >= H1 && s <= H1 + trackWidth(T); };
+const bugSurfaceName = bug => (bugOnFloor(bug) ? 'floor' : 'wall');
+
+function poseBug(bug, dt, snap) {                                         // stands the bug on its surface, head toward where it is walking
+  const k = bug.userData;
+  surfaceAt(k.track, k.s, k.u, bug.position, _bn, _bt, _ba);
+  _bf.copy(_bt).multiplyScalar(Math.cos(k.theta)).addScaledVector(_ba, Math.sin(k.theta)).normalize();
+  _bx.crossVectors(_bn, _bf);
+  _bm.makeBasis(_bx, _bn, _bf); _bq.setFromRotationMatrix(_bm);
+  if (snap) bug.quaternion.copy(_bq); else bug.quaternion.slerp(_bq, 1 - Math.exp(-14 * dt));
+}
+
+// A random spot on any hallway's floor or walls, not too close to the player.
+function pickBugSpot(onlyTrack) {                                         // onlyTrack (optional): choose a spot in that hallway
+  const total = TRACKS.reduce((n, T) => n + (T.u1 - T.u0), 0);
+  let spot = null;
+  for (let i = 0; i < 80; i++) {
+    let r = Math.random() * total, T = TRACKS[0];
+    for (const t of TRACKS) { if (r < t.u1 - t.u0) { T = t; break; } r -= t.u1 - t.u0; }
+    if (onlyTrack) T = onlyTrack;
+    const W = trackWidth(T), s = 0.35 + Math.random() * (trackSpan(T) - 0.7), u = T.u0 + 0.35 + Math.random() * (T.u1 - T.u0 - 0.7);
+    if ((s < H1 && !wallExists(T, 'A', u)) || (s > H1 + W && !wallExists(T, 'B', u))) continue;
+    spot = { T, s, u };
+    surfaceAt(T, s, u, _bp, _bn, _bt, _ba);
+    if (Math.hypot(_bp.x - player.position.x, _bp.y - 1, _bp.z - player.position.z) >= 4) break;
+  }
+  return spot;
+}
+
+const bugs = [];
+function spawnBugs() {
+  for (const b of bugs) floor1.remove(b);
+  bugs.length = 0;
+  const keys = Object.keys(BUG_COLORS);
+  for (let i = 0; i < BUG_COUNT; i++) {
+    const bug = makeBug(keys[i % keys.length], BUG_SIZE), spot = pickBugSpot(TRACKS[i % TRACKS.length]);   // the first four go one to each hall
+    Object.assign(bug.userData, { track: spot.T, s: spot.s, u: spot.u, theta: Math.random() * Math.PI * 2, turnTimer: Math.random() * 2 });
+    poseBug(bug, 0, true); floor1.add(bug); bugs.push(bug);
+  }
+}
+
+// One bug's life: idle (it crawls) -> squishing (flattens) -> splat (a mark fades where it died) -> spawning (it pops back somewhere else) -> idle.
+function squishBug(bug) {
+  if (bug.userData.state !== 'idle') return false;                       // only a living bug can be squished
+  bug.userData.state = 'squishing'; bug.userData.t = 0; return true;
+}
+function stepBugOnTrack(bug, dt) {
+  const k = bug.userData, T = k.track, W = trackWidth(T), m = 0.35;
+  k.turnTimer -= dt;
+  if (k.turnTimer <= 0) { k.theta += (Math.random() - 0.5) * 1.8; k.turnTimer = 0.8 + Math.random() * 1.8; }
+  let ns = k.s + Math.cos(k.theta) * k.speed * dt, nu = k.u + Math.sin(k.theta) * k.speed * dt;
+  if (nu < T.u0 + m)             { nu = T.u0 + m;             k.theta = -k.theta; }               // bounce off the ends of the hallway
+  if (nu > T.u1 - m)             { nu = T.u1 - m;             k.theta = -k.theta; }
+  if (ns < m)                    { ns = m;                    k.theta = Math.PI - k.theta; }      // and off the tops of the walls
+  if (ns > trackSpan(T) - m)     { ns = trackSpan(T) - m;     k.theta = Math.PI - k.theta; }
+  const onA = ns < H1, onB = ns > H1 + W;
+  if ((onA && !wallExists(T, 'A', nu)) || (onB && !wallExists(T, 'B', nu))) {                      // there is no wall there (a doorway or a junction): turn away
+    k.theta += Math.PI / 2 + Math.random(); return;
+  }
+  k.s = ns; k.u = nu;
+}
+function updateBug(bug, dt, time) {
+  const k = bug.userData, rig = k.rig;
+  if (k.state === 'idle') {
+    k.legs.forEach(l => { l.pivot.rotation.y = l.base + Math.sin(time * 12 + l.phase) * 0.22; });
+    k.antennae.forEach(a => { a.pivot.rotation.y = a.base + Math.sin(time * 3 + a.phase) * 0.15; });
+    rig.rotation.z = Math.sin(time * 6 + k.phase) * 0.03;
+    if (!k.hold && !k.escort) stepBugOnTrack(bug, dt);                    // a bug stands still while its menu is open, or while Donut comes for it
+    poseBug(bug, dt, false);
+  } else if (k.state === 'squishing') {
+    k.t += dt;
+    const f = Math.min(k.t / 0.12, 1);
+    rig.scale.set(1 + 0.4 * f, 1 - 0.92 * f, 1 + 0.4 * f);
+    if (f >= 1) { k.state = 'splat'; k.t = 0; rig.visible = false; k.splat.visible = true; k.splat.material.opacity = 0.9; }
+  } else if (k.state === 'splat') {
+    k.t += dt;
+    k.splat.material.opacity = 0.9 * Math.max(0, 1 - k.t / BUG_RESPAWN);
+    if (k.t >= BUG_RESPAWN) {
+      const spot = pickBugSpot();                                         // somewhere new, away from the player
+      Object.assign(k, { track: spot.T, s: spot.s, u: spot.u, theta: Math.random() * Math.PI * 2, turnTimer: 0, state: 'spawning', t: 0, hold: false, escort: false });
+      poseBug(bug, 0, true); k.splat.visible = false; rig.visible = true; rig.rotation.z = 0; rig.scale.set(0.001, 0.001, 0.001);
+    }
+  } else if (k.state === 'spawning') {
+    k.t += dt;
+    const f = Math.min(k.t / 0.3, 1);
+    rig.scale.setScalar(Math.max(1 + 2.70158 * Math.pow(f - 1, 3) + 1.70158 * Math.pow(f - 1, 2), 0.001));
+    if (f >= 1) { k.state = 'idle'; rig.scale.set(1, 1, 1); }
+  }
+}
+
+
+/* ============ Player and Donut ============
+   The player is Carl, loaded from meshy_carl.glb (keep it in the same folder as this file, and serve the folder from a web address such
+   as Netlify: a browser will not let a page opened straight from a file load another file). Until Carl arrives, or if he cannot be
+   loaded, a purple capsule stands in. Dropping a .glb on the page still swaps in a different model. Donut trails the player. */
+const PLAYER_MODEL = 'meshy_carl.glb', PLAYER_HEIGHT = 1.9;
+const player = new THREE.Group(); scene.add(player);
+const avatarPivot = new THREE.Group(); player.add(avatarPivot);        // the walking bob moves THIS, never the player, so the camera never bobs
+const capsule = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 6, 12), new THREE.MeshStandardMaterial({ color: 0xa35cff }));
+capsule.position.y = 1; capsule.castShadow = true; capsule.visible = false; avatarPivot.add(capsule);   // hidden at first, so a quick load does not flash it
+let avatar = capsule, modelLoaded = false;
+player.position.set(0, 0, 12);
+function setAvatar(model) {                                            // fit a loaded model to the player's height, stand it on the ground, and swap it in
+  const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  model.scale.multiplyScalar(PLAYER_HEIGHT / size.y);
+  const bb = new THREE.Box3().setFromObject(model);
+  model.position.y -= bb.min.y;
+  model.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  avatarPivot.remove(avatar); avatar = model; avatarPivot.add(avatar); modelLoaded = true;
+}
+
+/* ---- Donut: the trailing cat (built from simple shapes, see donut-preview.html) ---- */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function makeTortieTexture(seed) {
+  const size = 512, c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'), rnd = mulberry32(seed);
+  x.fillStyle = 'rgb(201,119,42)'; x.fillRect(0, 0, size, size);                       // orange base
+  const blotch = (rgb, count, rMin, rMax) => {
+    for (let i = 0; i < count; i++) {
+      const px = rnd() * size, py = rnd() * size, r = rMin + rnd() * (rMax - rMin);
+      for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {            // wrap around the edges so the pattern tiles
+        const g = x.createRadialGradient(px + dx, py + dy, r * 0.25, px + dx, py + dy, r);
+        g.addColorStop(0, `rgba(${rgb},1)`); g.addColorStop(1, `rgba(${rgb},0)`);
+        x.fillStyle = g; x.beginPath(); x.arc(px + dx, py + dy, r, 0, Math.PI * 2); x.fill();
+      }
+    }
+  };
+  blotch('23,18,15', 16, 60, 140);         // big black patches
+  blotch('201,119,42', 12, 40, 90);        // orange over the black, so the patches blend like brindled fur
+  blotch('241,220,184', 8, 25, 60);        // a few cream patches
+  for (let i = 0; i < 1800; i++) {         // fine fur strokes
+    const px = rnd() * size, py = rnd() * size, a = rnd() * Math.PI, len = 4 + rnd() * 8;
+    x.strokeStyle = rnd() < 0.5 ? 'rgba(20,14,10,0.10)' : 'rgba(255,230,190,0.10)';
+    x.lineWidth = 1; x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len); x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+function makeDonut(height = 0.6) {
+  const tex = makeTortieTexture(7);
+  const fur = (ox, oy, rep = 1) => {                                                  // each body part gets the pattern shifted a bit
+    const t = tex.clone(); t.needsUpdate = true; t.offset.set(ox, oy); t.repeat.set(rep, rep);
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 });
+  };
+  const bodyM = fur(0, 0), headM = fur(0.37, 0.21);
+  const legColors = [0xc9772a, 0x241912, 0x241912, 0xc9772a], tailM = new THREE.MeshStandardMaterial({ color: 0x4a2a14, roughness: 0.95 });
+  const std = (color, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
+  const cream = std(0xf1dfc0, 0.95), pink = std(0xd9a0a0, 0.7), nosePink = std(0xc77f86, 0.6), amber = std(0xe39a2e, 0.3);
+  const black = new THREE.MeshStandardMaterial({ color: 0x0c0a09, roughness: 0.3 }), whiskerM = std(0xf4efe6, 0.6);
+  const glintM = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+  const root = new THREE.Group();
+  const add = (parent, mesh, x = 0, y = 0, z = 0) => { mesh.position.set(x, y, z); parent.add(mesh); return mesh; };
+  const ball = (r, mat, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), mat); m.scale.set(sx, sy, sz); return m; };
+
+  // Body, fluffy neck ruff and chest. The body group is what breathes and bobs.
+  const body = new THREE.Group(); root.add(body);
+  add(body, ball(0.3, bodyM, 0.85, 0.78, 1.15), 0, 0.27, 0);
+  add(body, ball(0.2, headM, 1.15, 1, 0.8), 0, 0.3, 0.22);
+  add(body, ball(0.14, cream, 1.1, 0.9, 0.7), 0, 0.22, 0.3);
+
+  // Four short, thick legs on pivots, with fluffy paws.
+  const legs = [];
+  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([side, end], idx) => {
+    const limbM = std(legColors[idx], 0.95);
+    const pivot = new THREE.Group(); pivot.position.set(side * 0.14, 0.22, end * 0.2); root.add(pivot);
+    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.17, 12), limbM); limb.geometry.translate(0, -0.085, 0); pivot.add(limb);
+    add(pivot, ball(0.085, limbM, 1, 0.7, 1.25), 0, -0.16, 0.03);
+    legs.push({ pivot, offset: (side * end > 0) ? 0 : Math.PI });                   // opposite corners step together
+  });
+
+  // Head, on a pivot at the neck so it can turn. Flat face: big round eyes set close to a tiny nose.
+  const headPivot = new THREE.Group(); headPivot.position.set(0, 0.35, 0.3); root.add(headPivot);
+  add(headPivot, ball(0.19, headM, 1.12, 0.95, 0.9), 0, 0.07, 0.05);
+  for (const side of [-1, 1]) add(headPivot, ball(0.095, headM, 1, 0.9, 0.8), side * 0.15, 0.02, 0.08);         // fluffy cheeks
+  add(headPivot, ball(0.022, nosePink, 1, 0.7, 0.8), 0, 0.04, 0.222);
+  for (const side of [-1, 1]) add(headPivot, ball(0.05, cream, 1, 0.9, 0.8), side * 0.04, 0.01, 0.2);           // muzzle puffs
+
+  const eyes = [];
+  for (const side of [-1, 1]) {
+    const eye = add(headPivot, ball(0.042, amber, 1, 0.95, 0.6), side * 0.088, 0.1, 0.185);
+    add(eye, ball(0.02, black, 0.35, 1, 0.3), 0, 0, 0.03);                         // slit pupil
+    add(eye, new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), glintM), 0.012, 0.014, 0.04);
+    eyes.push(eye);
+    add(headPivot, ball(0.046, headM, 1.05, 0.5, 0.9), side * 0.088, 0.128, 0.19);                               // heavy upper lids: a haughty look
+  }
+
+  const ears = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group(); pivot.position.set(side * 0.125, 0.21, 0.0); pivot.rotation.z = -side * 0.25; headPivot.add(pivot);
+    add(pivot, ball(0.065, headM, 1, 1.1, 0.45), 0, 0.04, 0);
+    add(pivot, ball(0.045, pink, 1, 1.1, 0.3), 0, 0.04, 0.02);
+    ears.push({ pivot, base: pivot.rotation.z, flick: 0 });
+  }
+
+  for (const side of [-1, 1]) for (const k of [-1, 0, 1]) {                         // short white whiskers
+    const pivot = new THREE.Group(); pivot.position.set(side * 0.05, 0.03 + k * 0.012, 0.205);
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.0015, 0.15, 4), whiskerM); w.geometry.translate(0, 0.075, 0); pivot.add(w);
+    pivot.rotation.z = -side * (Math.PI / 2) - side * k * 0.18; pivot.rotation.y = side * 0.4;
+    headPivot.add(pivot);
+  }
+
+  // Bushy tail: a chain of fat segments that arcs upward, with a rounded tip.
+  const tail = [];
+  let parent = new THREE.Group(); parent.position.set(0, 0.34, -0.32); root.add(parent);
+  for (let i = 0; i < 6; i++) {
+    const len = 0.09, r1 = 0.095 - i * 0.008, r2 = 0.095 - (i + 1) * 0.008;
+    const seg = new THREE.Group(); seg.rotation.x = 0.25; parent.add(seg);
+    seg.add(new THREE.Mesh(new THREE.SphereGeometry(r1, 12, 10), tailM));                      // a round joint hides the seams between segments
+    seg.add(new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 10).rotateX(-Math.PI / 2).translate(0, 0, -len / 2), tailM));
+    const next = new THREE.Group(); next.position.set(0, 0, -len); seg.add(next);
+    tail.push(seg); parent = next;
+  }
+  add(parent, ball(0.052, tailM), 0, 0, 0);
+
+  root.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  root.scale.setScalar(height / 0.775);
+  root.userData = { body, legs, headPivot, ears, eyes, tail, yaw: 0, pitch: 0, phase: 0, walk: 0,
+                    blinkT: 2, blinking: 0, earT: 3, heading: 0, following: false };
+  return root;
+}
+
+const _v = new THREE.Vector3();
+// speed01: 0 = standing, 1 = running. lookAt: a world point to look at, or null.
+function updateDonut(d, dt, time, speed01, lookAt) {
+  const u = d.userData;
+  u.walk += (speed01 - u.walk) * (1 - Math.exp(-8 * dt));
+  const moving = u.walk > 0.03;
+  if (moving) u.phase += dt * (6 + 8 * u.walk);
+  const swing = moving ? Math.min(1, u.walk * 2) * 0.7 : 0;
+  u.legs.forEach(l => { const t = Math.sin(u.phase + l.offset) * swing; l.pivot.rotation.x += (t - l.pivot.rotation.x) * (1 - Math.exp(-16 * dt)); });
+  const breath = Math.sin(time * 1.8);
+  u.body.scale.y = 1 + breath * 0.012;
+  u.body.position.y = moving ? Math.abs(Math.sin(u.phase)) * 0.014 : 0;
+
+  const sway = 0.16 + 0.1 * u.walk;
+  u.tail.forEach((seg, i) => { seg.rotation.y = Math.sin(time * (1.6 + u.walk * 2) - i * 0.55) * sway; });
+
+  u.earT -= dt;
+  if (u.earT <= 0) { const e = u.ears[Math.floor(Math.random() * 2)]; e.flick = 0.22; u.earT = 2 + Math.random() * 4; }
+  u.ears.forEach(e => { if (e.flick > 0) { e.flick -= dt; e.pivot.rotation.z = e.base + Math.sin(Math.max(e.flick, 0) / 0.22 * Math.PI) * 0.35; } else e.pivot.rotation.z = e.base; });
+
+  u.blinkT -= dt;
+  if (u.blinkT <= 0) { u.blinking = 0.14; u.blinkT = 2.5 + Math.random() * 3.5; }
+  if (u.blinking > 0) u.blinking -= dt;
+  u.eyes.forEach(e => { e.scale.y = u.blinking > 0 ? 0.1 : 0.95; });
+
+  let yawT = 0, pitchT = 0;
+  if (lookAt) {
+    _v.copy(lookAt); d.worldToLocal(_v);
+    yawT = Math.max(-1.0, Math.min(1.0, Math.atan2(_v.x, _v.z - 0.3)));
+    pitchT = Math.max(-0.4, Math.min(0.4, -Math.atan2(_v.y - 0.42, Math.hypot(_v.x, _v.z - 0.3)) + 0.1));
+  }
+  const k = 1 - Math.exp(-6 * dt);
+  u.yaw += (yawT - u.yaw) * k; u.pitch += (pitchT - u.pitch) * k;
+  u.headPivot.rotation.set(u.pitch, u.yaw, Math.sin(time * 0.7) * 0.03);            // a slow, proud tilt
+}
+
+// Trailing the player: she starts walking when the player gets farther than startAt, and stops at stopAt.
+// minDist is her personal space: if the player walks into her she is nudged out of the way.
+// Returns her speed from 0 to 1 for updateDonut().
+function followTarget(d, target, dt, o = { stopAt: 1.5, startAt: 1.9, maxSpeed: 2.8, minDist: 1.0 }) {
+  const u = d.userData;
+  const dx = target.x - d.position.x, dz = target.z - d.position.z, dist = Math.hypot(dx, dz);
+  if (dist > o.startAt) u.following = true; else if (dist < o.stopAt) u.following = false;
+  let speed = 0;
+  if (u.following) {
+    speed = Math.min(o.maxSpeed, (dist - o.stopAt) * (o.gain || 2.5) + 0.8);
+    let diff = Math.atan2(dx, dz) - u.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));                               // shortest way round
+    u.heading += diff * (1 - Math.exp(-8 * dt));
+    d.position.x += Math.sin(u.heading) * speed * dt;
+    d.position.z += Math.cos(u.heading) * speed * dt;
+  }
+  const ex = target.x - d.position.x, ez = target.z - d.position.z, gap = Math.hypot(ex, ez);
+  if (gap > 0 && gap < o.minDist) {                          // personal space: she is never pushed inside the player
+    d.position.x -= (ex / gap) * (o.minDist - gap);
+    d.position.z -= (ez / gap) * (o.minDist - gap);
+  }
+  d.rotation.y = u.heading;
+  return speed / o.maxSpeed;
+}
+
+
+
+/* ---- Mordecai: the guildmaster (built from simple shapes, see mordecai-preview.html) ---- */
+/* ============ Mordecai ============
+   makeMordecai(height) builds him out of simple shapes (no model file needed).
+   He faces +Z, stands on y = 0, and is 1.4 units tall at the default size.
+   updateMordecai() runs every frame: breathing, blinking, whisker twitches, ear flicks, a swaying tail,
+   and (optionally) turning his head toward a point in the world. */
+function makeMordecai(height = 1.4) {
+  const std = (color, roughness = 0.85) => new THREE.MeshStandardMaterial({ color, roughness });
+  const fur = std(0x7a6a58), furDark = std(0x5a4e40, 0.9), pink = std(0xd9a0a0, 0.7), beardM = std(0xb9b3a7, 0.9);
+  const whiskerM = std(0xd9d4c8, 0.6), robe = std(0x2f3447, 0.9), trim = std(0x4d5670), rope = std(0xb08d57, 0.8);
+  const tailM = std(0xb98f8a, 0.8), eyeM = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 });
+  const glintM = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+  const root = new THREE.Group();
+  const add = (parent, mesh, x = 0, y = 0, z = 0) => { mesh.position.set(x, y, z); parent.add(mesh); return mesh; };
+  const ball = (r, mat, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat); m.scale.set(sx, sy, sz); return m; };
+
+  // Robe, shoulders, collar, belt, hem. The chest group is what "breathes".
+  const chest = new THREE.Group(); root.add(chest);
+  add(chest, new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.4, 0.95, 24), robe), 0, 0.525, 0);
+  add(chest, ball(0.27, robe, 1, 0.6, 0.8), 0, 0.95, 0);
+  const hem = add(chest, new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.025, 8, 28), trim), 0, 0.07, 0); hem.rotation.x = Math.PI / 2;
+  const collar = add(chest, new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 8, 20), trim), 0, 1.03, 0); collar.rotation.x = Math.PI / 2;
+  const belt = add(chest, new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.02, 8, 24), rope), 0, 0.78, 0); belt.rotation.x = Math.PI / 2;
+  add(chest, new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.2, 6), rope), 0.06, 0.66, 0.285);   // rope end hanging from the belt
+
+  // Feet peeking out below the robe.
+  for (const side of [-1, 1]) add(root, ball(0.07, furDark, 0.9, 0.5, 1.5), side * 0.1, 0.035, 0.12);
+
+  // Arms: wide sleeves held slightly away from the body, with fur paws.
+  const arms = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group(); pivot.position.set(side * 0.26, 0.97, 0); pivot.rotation.x = -0.15; root.add(pivot);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.115, 0.42, 16), robe); sleeve.geometry.translate(0, -0.21, 0); pivot.add(sleeve);
+    const cuff = add(pivot, new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.018, 8, 16), trim), 0, -0.42, 0); cuff.rotation.x = Math.PI / 2;
+    add(pivot, ball(0.05, fur, 1, 1.3, 0.8), 0, -0.47, 0);
+    arms.push({ pivot, side, phase: side * 0.8 });
+  }
+
+  // Head, on a pivot at the neck so it can turn.
+  const headPivot = new THREE.Group(); headPivot.position.set(0, 1.05, 0); root.add(headPivot);
+  add(headPivot, ball(0.18, fur, 1, 1, 1.1), 0, 0.13, 0);
+  const snout = add(headPivot, new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.1, 0.26, 14), fur), 0, 0.09, 0.2); snout.rotation.x = Math.PI / 2;
+  add(headPivot, ball(0.035, pink), 0, 0.09, 0.335);                                                         // nose
+  for (const side of [-1, 1]) add(headPivot, ball(0.04, beardM), side * 0.04, 0.075, 0.27);                    // muzzle puffs
+
+  const eyes = [];
+  for (const side of [-1, 1]) {
+    const eye = add(headPivot, ball(0.028, eyeM), side * 0.075, 0.16, 0.14);
+    add(eye, new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), glintM), 0.008, 0.01, 0.022);
+    eyes.push(eye);
+    const brow = add(headPivot, new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.016, 0.025), beardM), side * 0.075, 0.205, 0.15);
+    brow.rotation.z = side * 0.35;                                                                          // slanted in: a wary look
+  }
+
+  const ears = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group(); pivot.position.set(side * 0.13, 0.26, -0.03); pivot.rotation.y = side * 0.5; headPivot.add(pivot);
+    add(pivot, ball(0.09, furDark, 1, 1.15, 0.28), 0, 0.05, 0);
+    add(pivot, ball(0.06, pink, 1, 1.15, 0.2), 0, 0.05, 0.02);
+    ears.push({ pivot, base: pivot.rotation.z, flick: 0 });
+  }
+
+  const whiskers = [];
+  for (const side of [-1, 1]) for (const k of [-1, 0, 1]) {
+    const pivot = new THREE.Group(); pivot.position.set(side * 0.05, 0.085 + k * 0.012, 0.3);
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.002, 0.22, 4), whiskerM); w.geometry.translate(0, 0.11, 0); pivot.add(w);
+    const base = -side * (Math.PI / 2) - side * k * 0.16;      // outward, with the lower ones drooping a little
+    pivot.rotation.z = base; pivot.rotation.y = side * 0.5;    // and swept back
+    headPivot.add(pivot);
+    whiskers.push({ pivot, base, phase: Math.random() * 6.28 });
+  }
+
+  // Beard: a long tuft under the chin with two smaller ones beside it.
+  const beard = new THREE.Group(); beard.position.set(0, 0.05, 0.14); headPivot.add(beard);
+  const tuft = (r, h, x, y, z, rz) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, 0.012, h, 12), beardM); m.position.set(x, y, z); m.rotation.z = rz; beard.add(m); return m; };
+  tuft(0.085, 0.34, 0, -0.15, 0.02, 0);
+  tuft(0.05, 0.21, -0.085, -0.07, 0.0, 0.3);
+  tuft(0.05, 0.21, 0.085, -0.07, 0.0, -0.3);
+  beard.rotation.x = -0.45;                       // leaning forward, so it hangs over the front of the robe
+
+  // Tail: a chain of segments, each hanging off the one before so it can sway like a whip.
+  const tail = [];
+  let parent = new THREE.Group(); parent.position.set(0, 0.12, -0.37); root.add(parent);
+  for (let i = 0; i < 8; i++) {
+    const len = 0.1, r1 = 0.02 - i * 0.0015, r2 = 0.02 - (i + 1) * 0.0015;
+    const seg = new THREE.Group(); seg.rotation.x = 0.06; parent.add(seg);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 8).rotateX(-Math.PI / 2).translate(0, 0, -len / 2), tailM); seg.add(m);
+    const next = new THREE.Group(); next.position.set(0, 0, -len); seg.add(next);
+    tail.push(seg); parent = next;
+  }
+
+  root.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  root.scale.setScalar(height / 1.4);
+  root.userData = { chest, headPivot, arms, ears, eyes, whiskers, beard, tail, yaw: 0, pitch: 0, blinkT: 2, blinking: 0, earT: 3, talking: 0 };
+  return root;
+}
+
+const _mv = new THREE.Vector3();
+function updateMordecai(m, dt, time, lookAt) {
+  const u = m.userData;
+  const breath = Math.sin(time * 1.6);
+  u.chest.scale.y = 1 + breath * 0.008;
+  u.headPivot.position.y = 1.05 + breath * 0.004;
+  u.arms.forEach(a => { a.pivot.rotation.z = a.side * (0.5 + 0.03 * Math.sin(time * 1.5 + a.phase)); });
+  u.tail.forEach((seg, i) => { seg.rotation.y = Math.sin(time * 1.8 - i * 0.5) * 0.14; });
+
+  const amp = Math.pow(Math.max(0, Math.sin(time * 0.9 + 1)), 6);                  // whiskers twitch in short bursts
+  u.whiskers.forEach(w => { w.pivot.rotation.z = w.base + Math.sin(time * 30 + w.phase) * 0.06 * amp; });
+
+  u.earT -= dt;                                                                     // an ear flicks now and then
+  if (u.earT <= 0) { const e = u.ears[Math.floor(Math.random() * 2)]; e.flick = 0.25; u.earT = 2 + Math.random() * 4; }
+  u.ears.forEach(e => { if (e.flick > 0) { e.flick -= dt; e.pivot.rotation.z = e.base + Math.sin(Math.max(e.flick, 0) / 0.25 * Math.PI) * 0.4; } else e.pivot.rotation.z = e.base; });
+
+  u.blinkT -= dt;
+  if (u.blinkT <= 0) { u.blinking = 0.14; u.blinkT = 2 + Math.random() * 3; }
+  if (u.blinking > 0) u.blinking -= dt;
+  u.eyes.forEach(e => { e.scale.y = u.blinking > 0 ? 0.12 : 1; });
+
+  let yawT = 0, pitchT = 0;                                                         // turn his head toward the target, within a natural range
+  if (lookAt) {
+    _mv.copy(lookAt); m.worldToLocal(_mv);
+    yawT = Math.max(-0.9, Math.min(0.9, Math.atan2(_mv.x, _mv.z)));
+    pitchT = Math.max(-0.3, Math.min(0.3, -Math.atan2(_mv.y - 1.18, Math.hypot(_mv.x, _mv.z))));
+  }
+  const k = 1 - Math.exp(-6 * dt);
+  u.yaw += (yawT - u.yaw) * k; u.pitch += (pitchT - u.pitch) * k;
+  let nod = 0, wag = 0;
+  if (u.talking > 0) { u.talking -= dt; nod = Math.sin(time * 14) * 0.05; wag = Math.sin(time * 14 + 1) * 0.12; }
+  u.headPivot.rotation.set(u.pitch + nod, u.yaw, 0);
+  u.beard.rotation.x = -0.45 + wag;
+}
+
+
+
+const donut = makeDonut(0.6);
+donut.position.set(1.8, 0, 12.6); scene.add(donut);
+const mordecai = makeMordecai(1.4);                                   // waiting in the safe room, facing the door
+mordecai.position.set(-19, 0, -10); mordecai.rotation.y = Math.PI / 2; floor1.add(mordecai);
+floor1Colliders.push({ type: 'circle', x: -19, z: -10, r: 0.45 });    // he is solid: the hem of his robe is 0.4 wide. The player and Donut cannot walk through him
+
+const loader = new GLTFLoader();
+setTimeout(() => { if (!modelLoaded) capsule.visible = true; }, 2500);   // if Carl is slow, show the stand-in after a moment
+const loadingEl = $('loading');
+let loadFailed = false;
+const showLoading = setTimeout(() => { if (!modelLoaded && !loadFailed) loadingEl.hidden = false; }, 400);   // only shown if it takes a moment
+loader.load(PLAYER_MODEL, gltf => { clearTimeout(showLoading); loadingEl.hidden = true; setAvatar(gltf.scene); },
+  e => { if (e.lengthComputable) loadingEl.textContent = `Loading Carl\u2026 ${Math.round(100 * e.loaded / e.total)}%`; },
+  () => {
+  clearTimeout(showLoading); loadingEl.hidden = true; loadFailed = true;
+  capsule.visible = true;                                              // Carl could not be loaded: keep the capsule and say why
+  announce('Note', 'Carl did not load', `The model ${PLAYER_MODEL} could not be loaded, so a capsule stands in. This usually means the page was opened straight from a file: open it from a web address (Netlify, or a local web server) or drop ${PLAYER_MODEL} onto the page.`, { silent: true, duration: 20000 });
+});
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.name.toLowerCase().endsWith('.glb')) return;
+  loader.load(URL.createObjectURL(file), gltf => setAvatar(gltf.scene));
+});
+
+/* ---- The walking bob: a small lift, a slight sway from side to side and a slight forward lean while the player really moves. It eases in
+   and out, never takes the feet below the ground, and moves only the character: the camera stays steady. ---- */
+const BOB_HEIGHT = 0.045, BOB_SWAY = 0.03, BOB_LEAN = 0.04, BOB_RATE = 5.5;   // units; radians; radians; radians a second (the bob is about 1.75 lifts a second)
+const walk = { amount: 0, phase: 0 };
+function updateWalkBob(dt, movedDistance) {
+  const speed = dt > 0 ? movedDistance / dt : 0;                       // the distance really covered, so walking into a wall does not bob
+  walk.amount += (Math.min(1, speed / 5) - walk.amount) * (1 - Math.exp(-dt / 0.12));
+  walk.phase += dt * BOB_RATE * walk.amount;
+  const a = walk.amount < 0.001 ? 0 : walk.amount;
+  avatarPivot.position.y = BOB_HEIGHT * a * Math.pow(Math.sin(walk.phase), 2) * (reducedMotion ? 0.5 : 1);   // sin squared: always up from the ground, never below it
+  avatarPivot.rotation.z = reducedMotion ? 0 : BOB_SWAY * a * Math.sin(walk.phase);
+  avatarPivot.rotation.x = reducedMotion ? 0 : BOB_LEAN * a;           // the "reduce motion" setting keeps a half-height bob and drops the sway and lean
+}
+
+/* ============ Camera and input ============ */
+const controls = new OrbitControls(camera, renderer.domElement);
+camera.position.set(0, 5, 20);
+controls.target.set(0, 1.4, 12);
+controls.enableDamping = false;                                        // no drifting after the camera is moved: it stops when you stop
+controls.enablePan = false;                                            // the camera always stays on the player
+controls.enableRotate = false;                                         // mouse look is OFF until the player switches it on (the keyboard turns the camera)
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.minPolarAngle = Math.PI * 0.2;                                // not so high that you are looking straight down
+controls.minDistance = 3; controls.maxDistance = 14;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: null };             // no pinch or two-finger gestures: everything is one finger, or a button
+
+/* ============ Touch controls ============
+   Shown only while the player is using touch (and hidden again if they press a game key or use a mouse). A fixed stick (or a D-pad of
+   buttons) moves, hold-buttons turn and tilt the camera, a round button puts it behind the player, and one big button does what E does,
+   carrying the prompt. Everything feeds the same inputs as the keyboard. Settings (D-pad, swap sides) are remembered on the device. */
+const touchUI = $('touchUI'), stick = $('stick'), stickKnob = $('stickKnob'), dpad = $('dpad'), touchAct = $('touchAct');
+const dpadBtn = $('tcDpad'), swapBtn = $('tcSwap'), raiseBtn = $('tcRaise'), rotateTip = $('rotateTip');
+const RAISE_STEP = 40, RAISE_MAX = 3;
+const touchMove = { x: 0, z: 0 };                                      // the stick: x to the right, z forwards, each -1 to 1
+const settings = { dpad: false, swap: false, raise: 0 };           // raise: how far the controls are lifted by hand (0 to 3 steps), for browsers that hide the bottom of the page
+try { Object.assign(settings, JSON.parse(localStorage.getItem('crawlerTouch') || '{}')); } catch (e) { /* storage may be blocked: use the defaults */ }
+const saveSettings = () => { try { localStorage.setItem('crawlerTouch', JSON.stringify(settings)); } catch (e) { /* ignore */ } };
+const holds = [];                                                      // every hold-button, so they can all be let go together
+let touchMode = false, stickId = null, stickCentre = { x: 0, y: 0 }, stickTravel = 1;
+const portraitMQ = matchMedia('(orientation: portrait)');
+let tipDismissed = false;
+const updateTip = () => { rotateTip.hidden = !(touchMode && portraitMQ.matches && !tipDismissed); };
+portraitMQ.addEventListener('change', updateTip);
+$('tipClose').onclick = () => { tipDismissed = true; updateTip(); };
+
+function updateTouchLayout() {
+  stick.hidden = settings.dpad; dpad.hidden = !settings.dpad;
+  document.body.classList.toggle('swap', settings.swap);
+  dpadBtn.setAttribute('aria-pressed', String(settings.dpad)); swapBtn.setAttribute('aria-pressed', String(settings.swap));
+  settings.raise = Math.max(0, Math.min(RAISE_MAX, Math.round(+settings.raise || 0)));
+  touchUI.style.setProperty('--raise', settings.raise * RAISE_STEP + 'px');
+  raiseBtn.setAttribute('aria-pressed', String(settings.raise > 0));
+  raiseBtn.textContent = settings.raise ? `Raise controls (${settings.raise})` : 'Raise controls';
+}
+function touchRelease() {                                              // let go of the stick and every button (a dialog opened, or the window lost focus)
+  stickId = null; touchMove.x = 0; touchMove.z = 0; stickKnob.style.transform = '';
+  for (const h of holds) h.release();
+}
+function setTouchMode(on) {
+  if (touchMode === on) return;
+  touchMode = on; document.body.classList.toggle('touch', on); touchUI.hidden = !on;
+  if (!on) touchRelease();
+  updateTip();
+  renderer.domElement.setAttribute('aria-label', on
+    ? 'A three-dimensional game world. Use the on-screen buttons to move your character and the button at the bottom to interact.'
+    : 'A three-dimensional game world. Use the keyboard to move your character and press E to interact.');
+}
+dpadBtn.onclick = () => { settings.dpad = !settings.dpad; touchRelease(); updateTouchLayout(); saveSettings(); };
+swapBtn.onclick = () => { settings.swap = !settings.swap; updateTouchLayout(); saveSettings(); };
+raiseBtn.onclick = () => { settings.raise = (settings.raise + 1) % (RAISE_MAX + 1); updateTouchLayout(); saveSettings(); };   // each press lifts them a bit more, then back to the bottom
+updateTouchLayout();
+
+// The stick: drag from its centre. A small dead zone, then a gentle push walks slowly and a full push walks at full speed.
+function stickDrag(e) {
+  const dx = e.clientX - stickCentre.x, dy = e.clientY - stickCentre.y, d = Math.hypot(dx, dy) || 1;
+  const m = Math.min(1, d / stickTravel);
+  stickKnob.style.transform = `translate(${dx / d * Math.min(d, stickTravel)}px, ${dy / d * Math.min(d, stickTravel)}px)`;
+  if (m < 0.2) { touchMove.x = 0; touchMove.z = 0; return; }
+  const f = 0.35 + 0.65 * (m - 0.2) / 0.8;
+  touchMove.x = dx / d * f; touchMove.z = -dy / d * f;
+}
+stick.addEventListener('pointerdown', e => {
+  if (stickId !== null || paused()) return;
+  stickId = e.pointerId; try { stick.setPointerCapture(e.pointerId); } catch (err) { /* the finger may already be up */ }
+  const r = stick.getBoundingClientRect();
+  stickCentre = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; stickTravel = r.width / 2 - stickKnob.offsetWidth / 2;
+  stickDrag(e); e.preventDefault();
+});
+stick.addEventListener('pointermove', e => { if (e.pointerId === stickId) stickDrag(e); });
+for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) stick.addEventListener(t, e => { if (e.pointerId === stickId) touchRelease(); });
+
+// Hold-buttons (the D-pad and the camera buttons): held, they act like the key; activated by a keyboard, switch or screen reader (a click with
+// no finger press just before), they do one short step instead.
+for (const btn of document.querySelectorAll('#touchUI [data-hold]')) {
+  const code = btn.dataset.hold, stepMs = +btn.dataset.step;
+  let id = null, lastPress = -1e9;
+  const release = () => { if (id !== null) { keys.delete(code); lastPress = performance.now(); } id = null; btn.classList.remove('down'); };   // a finger lifting also counts as a finger event
+  holds.push({ release });
+  btn.addEventListener('pointerdown', e => { if (id !== null || paused()) return; id = e.pointerId; try { btn.setPointerCapture(id); } catch (err) { /* the finger may already be up */ } keys.add(code); btn.classList.add('down'); lastPress = performance.now(); e.preventDefault(); });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(t, e => { if (e.pointerId === id) release(); });
+  btn.addEventListener('click', () => {
+    if (performance.now() - lastPress < 800) return;                   // that click came straight after a finger (a tap or the end of a hold): the hold already did the work
+    keys.add(code); setTimeout(() => keys.delete(code), stepMs);
+  });
+}
+$('camHome').addEventListener('click', () => { if (!paused()) startRecentre(); });
+touchAct.addEventListener('click', () => { const i = nearest(); if (i) i.action(); });
+touchUI.addEventListener('contextmenu', e => e.preventDefault());      // no long-press menu on the controls
+
+// Touch or keys? The last kind of input used decides what is shown. A phone or tablet starts with the touch controls.
+addEventListener('pointerdown', e => { if (e.pointerType === 'touch') setTouchMode(true); else if (e.pointerType === 'mouse') setTouchMode(false); }, true);
+const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyE', 'KeyJ', 'KeyL', 'KeyI', 'KeyK', 'KeyC', 'KeyB']);
+addEventListener('keydown', e => { if (GAME_KEYS.has(e.code)) setTouchMode(false); }, true);
+addEventListener('blur', () => { keys.clear(); touchRelease(); });
+if (matchMedia('(pointer: coarse)').matches) setTouchMode(true);
+
+// Phones and iPads keep sound locked until a tap. Every tap tries to unlock it (it does nothing once it is running).
+for (const t of ['touchend', 'pointerup', 'click', 'keydown']) addEventListener(t, () => audioContext(), true);
+
+// Popups and the loading note start just below the status cards, however tall those are (they grow on a phone), so they never cover the buttons.
+const hudEl = $('hud');
+const syncHud = () => document.documentElement.style.setProperty('--hud-bottom', Math.ceil(hudEl.getBoundingClientRect().bottom + 8) + 'px');
+new ResizeObserver(syncHud).observe(hudEl); addEventListener('resize', syncHud); syncHud();
+
+// The picture, the controls and the dialogs follow the part of the screen you can actually SEE. Some phone and tablet browsers report a page
+// taller than the visible area while their toolbars are showing, which would leave the bottom of the controls off the screen.
+const vv = window.visualViewport;
+function syncViewport() {
+  if (vv && vv.scale > 1.01) return;                                   // the player has pinch-zoomed the page: leave the picture alone
+  const w = vv ? vv.width : innerWidth, h = vv ? vv.height : innerHeight;
+  const root = document.documentElement.style;
+  root.setProperty('--vv-w', w + 'px'); root.setProperty('--vv-h', h + 'px');
+  root.setProperty('--vv-left', (vv ? vv.offsetLeft : 0) + 'px'); root.setProperty('--vv-top', (vv ? vv.offsetTop : 0) + 'px');
+  camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+  syncHud();
+}
+if (vv) { vv.addEventListener('resize', syncViewport); vv.addEventListener('scroll', syncViewport); }
+
+/* ============ Camera keys ============
+   J and L turn the camera left and right, I and K tilt it up and down, C swings it round behind the player. It moves slowly and
+   steadily while a key is held, and stops the moment the key is let go. Mouse look is a switch (off to begin with). */
+const CAM_TURN = 0.7, CAM_TILT = 0.5, CAM_DEFAULT_PHI = 1.15;          // radians a second (about 40 and 29 degrees), and the usual height of the camera
+const _camOff = new THREE.Vector3(), _camSph = new THREE.Spherical();
+let recentre = null;
+const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));                // an angle brought into -pi to pi
+function startRecentre() {                                             // C: glide round to behind the way the player is facing
+  _camOff.subVectors(camera.position, controls.target); _camSph.setFromVector3(_camOff);
+  recentre = { t: 0, from: _camSph.theta, delta: wrap(player.rotation.y + Math.PI - _camSph.theta), phiFrom: _camSph.phi };
+}
+function applyKeyboardCamera(dt) {
+  const turn = (keys.has('KeyJ') ? 1 : 0) - (keys.has('KeyL') ? 1 : 0);
+  const tilt = (keys.has('KeyI') ? 1 : 0) - (keys.has('KeyK') ? 1 : 0);
+  if (!turn && !tilt && !recentre) return;
+  if ((turn || tilt) && recentre) recentre = null;                      // taking the camera yourself cancels the glide
+  _camOff.subVectors(camera.position, controls.target); _camSph.setFromVector3(_camOff);
+  if (recentre) {
+    recentre.t = reducedMotion ? 1 : Math.min(1, recentre.t + dt / 0.6);   // 0.6 seconds, or at once if the player prefers reduced motion
+    const e = recentre.t * recentre.t * (3 - 2 * recentre.t);
+    _camSph.theta = recentre.from + recentre.delta * e;
+    _camSph.phi = recentre.phiFrom + (CAM_DEFAULT_PHI - recentre.phiFrom) * e;
+    if (recentre.t >= 1) recentre = null;
+  } else {
+    _camSph.theta += turn * CAM_TURN * dt;                              // J: the view turns left (the camera moves round to the player's right)
+    _camSph.phi = Math.max(controls.minPolarAngle, Math.min(controls.maxPolarAngle, _camSph.phi + tilt * CAM_TILT * dt));   // I: look up (the camera sinks)
+  }
+  _camSph.phi = Math.max(controls.minPolarAngle, Math.min(controls.maxPolarAngle, _camSph.phi));
+  _camOff.setFromSpherical(_camSph); camera.position.copy(controls.target).add(_camOff);
+}
+const mouseBtn = $('mouselook');
+mouseBtn.onclick = () => {                                             // "Drag to look": the mouse or a finger dragging on the picture turns the camera
+  controls.enableRotate = !controls.enableRotate;
+  mouseBtn.setAttribute('aria-pressed', String(controls.enableRotate));
+};
+const keys = new Set();
+addEventListener('keydown', e => {
+  if (paused()) return;
+  keys.add(e.code);
+  if (e.code === 'KeyE') { const i = nearest(); if (i) i.action(); }
+  if (e.code === 'KeyC' && !e.repeat) startRecentre();
+  if (e.code === 'KeyB' && !e.repeat) openBag();
+});
+addEventListener('keyup', e => keys.delete(e.code));
+
+/* ============ Game state, places and interaction ============ */
+const state = { floor: 0, busy: false, places: new Set(), inv: { stick: 0, water: 0, caseEmpty: 0, caseFull: 0, hatParty: 0, hatPirate: 0, hatUmbrella: 0, hatCap: 0, hatCowboy: 0, hatPickle: 0, hatTall: 0, file: 0 }, hat: null, coins: 0, coinsTaken: 0, squished: 0, squish: { feet: 0, hand: 0, thrown: 0, donut: 0 },
+                doorTries: 0, wallTime: 0, camTurns: 0, sideVisited: false,
+                met: false, llamas: { pixel: 0, worn: 0 }, wornNoCoin: 0, llamaCoins: 0, llamaEscapes: 0, enteredAnnex: false,          // the new halls: met Mordecai, llamas burst, and so on
+                cart: {}, bought: 0, windowShopped: false, confettiHint: false,
+                walked: 0, idle: 0, lastColors: [] };            // distance walked on Floor 1, seconds standing still, and the colors of the last three bugs squished
+// The stairs are the only thing in the whole world you can walk up to and use.
+const stairs = { name: 'Stairs', x: 0, z: -10, radius: 3, prompt: 'Enter the dungeon', action: askDescend };
+let interactables = [stairs];
+active.list = surfaceColliders;
+const BUG_REACH = 2.4;                                                  // how far away a bug can be and still be dealt with (measured in 3D, from the player's chest)
+function nearest() {
+  let best = null, bestD = Infinity;
+  for (const i of interactables) { const d = Math.hypot(player.position.x - i.x, player.position.z - i.z); if (d < i.radius && d < bestD) { best = i; bestD = d; } }
+  if (state.floor === 1) for (const b of bugs) {
+    if (b.userData.state !== 'idle' || b.userData.escort) continue;
+    const d = Math.hypot(b.position.x - player.position.x, b.position.y - 1, b.position.z - player.position.z);
+    if (d < BUG_REACH && d < bestD) { best = { prompt: `Deal with the ${BUG_COLORS[b.userData.colorKey].label} bug`, action: () => openBugMenu(b) }; bestD = d; }
+  }
+  if (state.floor === 1) for (const l of llamas) {
+    const k = l.userData; if (k.state !== 'wander' || k.escort) continue;
+    const d = Math.hypot(l.position.x - player.position.x, l.position.y - 1, l.position.z - player.position.z);
+    if (d < BUG_REACH && d < bestD) { best = { prompt: `Deal with the ${LLAMA[k.kind].label} llama`, action: () => openLlamaMenu(l) }; bestD = d; }
+  }
+  return best;
+}
+
+const PLACE_TOTAL = 5;                                                  // the stairs, the entry hall, the great door, the safe room and the store
+function visitPlace(id) {
+  if (state.places.has(id)) return;
+  state.places.add(id); visitSound();
+  $('places').textContent = `Places: ${state.places.size} / ${PLACE_TOTAL}`;
+}
+function updateHud() { $('sticks').textContent = `Sticks: ${invHave('stick')}`; $('coins').textContent = `Coins: ${state.coins}`; $('bugCount').textContent = `Bugs squished: ${state.squished}`; updateBagButton(); }
+
+const confirmDlg = $('confirm'), finishDlg = $('finish'), storeDlg = $('storeDialog'), bagDlg = $('bagDialog');
+const bugDlg = $('bugDialog');
+const paused = () => confirmDlg.open || finishDlg.open || bugDlg.open || storeDlg.open || bagDlg.open || state.busy;      // checked at the moment it matters
+const updatePause = () => { if (paused()) keys.clear(); };
+confirmDlg.addEventListener('close', updatePause);
+finishDlg.addEventListener('close', updatePause);
+$('stay').addEventListener('click', () => confirmDlg.close());
+$('go').addEventListener('click', () => { confirmDlg.close(); descend(); });
+
+// One second after the world first appears: the terms and conditions. It is silent (the announcement sound starts on Floor 1)
+// and it stays until it is dismissed or the player goes down the stairs.
+// (The countdown starts at the first frame the player sees, so a slow first load does not eat into the second.)
+const TERMS = 'You may stay on the surface. The cold is patient, and no one is coming for you. Or you may enter the dungeon as a crawler. Everything inside is watching, and the rules are not up for debate. Take the stairs and you accept these terms. Stay, and the terms will find you anyway.';
+let firstFrameAt = 0;
+
+// --- Floor 1 interactions: the great door and Mordecai ---
+const doorSpot = { name: 'Great door', x: -8, z: -10, radius: 3, prompt: 'Try the door', action: tryDoor };
+const mordecaiSpot = { name: 'Mordecai', x: -19, z: -10, radius: 3.6, prompt: 'Talk to Mordecai', action: talkToMordecai };
+// While the door is locked, nobody knows who is behind it: the speaker is "....". Once it is open he has a name.
+const UNKNOWN_VOICE = { shown: '....', spoken: 'A voice behind the door' }, NAMED_VOICE = { shown: 'Mordecai', spoken: 'Mordecai' };
+const mordecaiVoice = () => (greatDoor.locked ? UNKNOWN_VOICE : NAMED_VOICE);
+const DOOR_LINES = [
+  'Go away.',
+  'Wait, has the crawl started?',
+  "Don't answer that. If it has, I don't want to know.",
+  'The door is locked. That is the whole message.',
+  'Have you seen the bugs in those hallways? I had to stomp a few myself before I got this door shut. Disgusting.',
+  'I can hear you breathing. Stop it.',
+  "Come back when you're less crawler-shaped.",
+  'Is that a cat? Why is there a cat? Take the cat and go away.',
+  "Knock all you like. I've heard worse knocking."
+];
+// n counts the tries from 0. The first three lines are said once. From the fourth ("The door is locked...") the rest come round in order, again and again.
+const FEET_TO_OPEN_DOOR = 5;                                            // bugs stomped to open the great door (it was 10; the new halls give the player more to do after Mordecai, so it is halved)
+const DOOR_ONCE = 3;
+const doorLine = n => (n < DOOR_ONCE ? DOOR_LINES[n] : DOOR_LINES[DOOR_ONCE + (n - DOOR_ONCE) % (DOOR_LINES.length - DOOR_ONCE)]);
+function tryDoor() {
+  visitPlace('door');
+  if (greatDoor.locked) { speak(mordecaiVoice(), doorLine(state.doorTries)); state.doorTries++; checkAchievements(); }
+}
+function unlockDoor() {
+  if (!greatDoor.locked) return;
+  greatDoor.locked = false;
+  floor1Colliders.splice(floor1Colliders.indexOf(greatDoor.collider), 1);
+  interactables = interactables.filter(i => i !== doorSpot);
+  announce('Great door', 'Open', 'The great door swings open.', { silent: true, duration: 4500 });
+}
+
+// --- Dealing with a bug: E opens a menu for that ONE bug. Stomp only works on the floor. ---
+let menuBug = null, donutErrand = null;
+const stompBtn = bugDlg.querySelector('[data-act="stomp"]'), throwBtn = bugDlg.querySelector('[data-act="throw"]');
+function openBugMenu(bug) {
+  if (menuBug || bug.userData.state !== 'idle' || bug.userData.escort) return;
+  menuBug = bug; bug.userData.hold = true;                              // the bug stands still while you decide
+  const onFloor = bugOnFloor(bug);
+  $('bugTitle').textContent = `A ${BUG_COLORS[bug.userData.colorKey].label} bug`;
+  $('bugDesc').textContent = `It is crawling on the ${onFloor ? 'floor' : 'wall'}. How do you want to deal with it?`;
+  stompBtn.setAttribute('aria-disabled', String(!onFloor));
+  $('stompInfo').textContent = onFloor ? 'With your foot. Floor bugs only.' : 'With your foot. Floor bugs only, and this one is on the wall.';
+  setMenuTexts(false);
+  $('bugNote').textContent = '';
+  bugDlg.showModal(); updatePause();
+}
+function doSquish(bug, how) {                                           // how: 'feet', 'hand', 'thrown' or 'donut'
+  if (!squishBug(bug)) return;
+  squishSound(); if (how in state.squish) state.squish[how]++; state.squished++;
+  if (state.met && Math.random() < BUG_COIN_CHANCE) dropCoin(bug.position.x, bug.position.z, false);   // after meeting Mordecai, a bug sometimes leaves a coin
+  state.lastColors.push(bug.userData.colorKey); if (state.lastColors.length > 3) state.lastColors.shift();     // for the hat trick
+  updateHud(); checkAchievements();
+}
+bugDlg.addEventListener('close', () => { if (menuBug) { menuBug.userData.hold = false; menuBug = null; } if (menuLlama) { menuLlama.userData.hold = false; menuLlama = null; } });   // Escape or "Leave it alone"
+$('bugLeave').addEventListener('click', () => bugDlg.close());
+function chooseBugAction(act) {
+  if (menuLlama) { chooseLlamaAction(act); return; }
+  const bug = menuBug; if (!bug) return;
+  if (act === 'grenade' && invHave('caseFull') <= 0) { $('bugNote').textContent = 'You have no full grenade case.'; return; }
+  if (act === 'stomp' && !bugOnFloor(bug)) { $('bugNote').textContent = 'You can only stomp a bug on the floor. Try another way.'; return; }
+  if (act === 'throw' && state.coins <= 0) { $('bugNote').textContent = 'You have no coins left to throw.'; return; }
+  bugDlg.close();
+  if (act === 'stomp') doSquish(bug, 'feet');
+  else if (act === 'smack') doSquish(bug, 'hand');
+  else if (act === 'throw') { state.coins--; doSquish(bug, 'thrown'); }
+  else if (act === 'grenade') { invTake('caseFull'); invGive('caseEmpty'); doSquish(bug, 'grenade'); }
+  else if (act === 'donut') { bug.userData.escort = true; donutErrand = { bug, t: 0 }; }   // Donut runs over; the bug waits for her
+}
+bugDlg.addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b) chooseBugAction(b.dataset.act); });
+bugDlg.addEventListener('keydown', e => { const act = { Digit1: 'stomp', Digit2: 'smack', Digit3: 'throw', Digit4: 'donut', Digit5: 'grenade' }[e.code]; if (act) chooseBugAction(act); });
+
+/* ============ The bag ============
+   Everything the crawler carries lives in state.inv, one number per kind of item, and ITEMS says what each kind is. To add a new
+   kind of item, add one entry to ITEMS (and a state.inv field). An entry can have:
+     max      the most the bag holds (items with `shared` count toward one limit together)
+     wear     true for something the crawler puts on a companion: the bag shows a Put on / Take off button (Donut wears one hat at a time)
+     passive  true for something that works all the time: the bag shows it as always active
+     use      { label, run } for something the player can use from the bag
+     look     a function returning a mesh, for when the item lies in the world as a pickup
+     onGive   called when the item first arrives
+   Use invHave, invGive, invTake and invRoom, never state.inv directly, so the HUD and the open bag stay in step. */
+const ITEMS = {
+  stick:     { name: 'Stick', text: 'A stick you picked up on the surface.', max: 99, look: () => new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1, 6), stdMat(0x8a6a44, 0.9)) },
+  water:     { name: 'Water bottle', text: 'Clean drinking water in a sealed bottle.', max: 5, look: () => new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.3, 10), stdMat(0x5aa9e6, 0.35)) },
+  caseEmpty: { name: 'Empty grenade case', text: 'Walk through fresh llama confetti to fill it.', max: 3, shared: 'case' },
+  caseFull:  { name: 'Confetti grenade', text: 'A case full of confetti. Throw it from the fight menu: two hits on a llama, or it splats a bug.', max: 3, shared: 'case' },
+  hatParty:  { name: 'Party hat for Donut', short: 'party hat', text: 'A small purple party hat for Donut.', max: 1, wear: true, onGive: () => wearFirstHat('hatParty') },
+  hatPirate: { name: 'Pirate hat for Donut', short: 'pirate hat', text: 'A black pirate hat with gold trim and a skull and crossbones, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatPirate') },
+  hatUmbrella: { name: 'Umbrella hat for Donut', short: 'umbrella hat', text: 'A hat with a small red and yellow umbrella on top, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatUmbrella') },
+  hatCap:    { name: 'Baseball cap for Donut', short: 'baseball cap', text: 'A blue baseball cap with a curved brim, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatCap') },
+  hatCowboy: { name: 'Cowboy hat for Donut', short: 'cowboy hat', text: 'A tan cowboy hat with a wide curled brim, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatCowboy') },
+  hatPickle: { name: 'Pickle hat for Donut', short: 'pickle hat', text: 'A hat shaped like a green pickle, covered in little bumps, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatPickle') },
+  hatTall:   { name: 'Tall striped hat for Donut', short: 'tall striped hat', text: 'A very tall hat with red and white stripes, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatTall') },
+  file:      { name: 'Confetti-proof nail file', text: 'Confetti no longer slows you down.', max: 1, passive: true }
+};
+const invHave = id => state.inv[id] || 0;
+const invShared = id => Object.keys(ITEMS).filter(k => ITEMS[k].shared && ITEMS[k].shared === ITEMS[id].shared).reduce((n, k) => n + invHave(k), 0);
+const invRoom = id => Math.max(0, ITEMS[id].max - (ITEMS[id].shared ? invShared(id) : invHave(id)));
+function invGive(id, n = 1) {                                                      // puts up to n in the bag, and returns how many fitted
+  const add = Math.min(n, invRoom(id)), first = add > 0 && invHave(id) === 0;
+  state.inv[id] = invHave(id) + add;
+  if (first && ITEMS[id].onGive) ITEMS[id].onGive();
+  if (add) { updateHud(); if (bagDlg.open) renderBag(); }
+  return add;
+}
+function invTake(id, n = 1) {                                                      // takes up to n out, and returns how many were there
+  const t = Math.min(n, invHave(id)); state.inv[id] = invHave(id) - t;
+  if (t) { updateHud(); if (bagDlg.open) renderBag(); }
+  return t;
+}
+
+/* Donut's hats: each one is built the first time it is worn, and only the worn one shows. state.hat is the id of the worn hat, or null. */
+const donutHats = {};
+const HAT_BUILDERS = {
+  hatParty: () => {
+    const g = new THREE.Group(), cone = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.2, 14), stdMat(0x9b5de5, 0.7)); cone.position.y = 0.1; g.add(cone);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.056, 0.01, 6, 16), stdMat(0xffd23f, 0.6)); band.rotation.x = Math.PI / 2; band.position.y = 0.06; g.add(band);
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), stdMat(0xffd23f, 0.6)); pom.position.y = 0.21; g.add(pom);
+    g.position.set(0, 0.24, 0.02); g.rotation.z = 0.18; return g;
+  },
+  hatPirate: () => {                                                               // a black three-cornered hat: a triangular shape with one corner to the front, gold edge, and a small skull
+    const g = new THREE.Group(), black = stdMat(0x1c1824, 0.6);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.105, 0.07, 3), stdMat(0x3a3650, 0.6)); body.position.y = 0.035; g.add(body);
+    const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.108, 0.108, 0.014, 3), stdMat(0xffd23f, 0.4)); trim.position.y = 0.007; g.add(trim);
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), stdMat(0xffffff, 0.5)); skull.position.set(0, 0.04, 0.09); g.add(skull);
+    for (const x of [-0.007, 0.007]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 6), black); eye.position.set(x, 0.044, 0.105); g.add(eye); }
+    g.scale.setScalar(1.4); g.position.set(0, 0.25, 0.02); g.rotation.z = 0.08; return g;       // larger than life, so the black shows against Donut's dark fur
+  },
+  hatUmbrella: () => {                                                             // a small striped umbrella on a pole, held up by a band
+    const g = new THREE.Group(), dark = stdMat(0x2b2233, 0.6);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.065, 0.04, 14), stdMat(0x3d7bff, 0.6)); band.position.y = 0.02; g.add(band);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.16, 6), dark); pole.position.y = 0.11; g.add(pole);
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.MeshStandardMaterial({ color: i % 2 ? 0xffd23f : 0xff3b3b, roughness: 0.7, side: THREE.DoubleSide, flatShading: true });
+      const seg = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 4, i * Math.PI / 3, Math.PI / 3, 0, Math.PI / 2), m); seg.scale.y = 0.55; seg.position.y = 0.17; g.add(seg);
+    }
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), stdMat(0xffd23f, 0.4)); tip.position.y = 0.245; g.add(tip);
+    g.position.set(0, 0.245, 0.02); return g;
+  },
+  hatCap: () => {                                                                  // a blue baseball cap: a dome, a button, and a brim that points forward
+    const g = new THREE.Group(), blue = stdMat(0x3d7bff, 0.7);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), blue); dome.scale.y = 0.9; g.add(dome);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.008, 20, 1, false, -Math.PI / 2, Math.PI), stdMat(0x2a5bd0, 0.7)); brim.position.set(0, 0.006, 0.03); g.add(brim);
+    const button = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), stdMat(0x2a5bd0, 0.7)); button.position.y = 0.068; g.add(button);
+    g.scale.setScalar(1.25); g.position.set(0, 0.24, 0.015); g.rotation.z = 0.06; return g;
+  },
+  hatCowboy: () => {                                                               // a tan crown, a brown band, and a wide brim whose sides curl up
+    const g = new THREE.Group(), tan = stdMat(0xe8c98c, 0.8), brown = stdMat(0x5a2f12, 0.8);
+    for (const side of [1, -1]) {
+      const half = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.008, 18, 1, false, side > 0 ? 0 : Math.PI, Math.PI), stdMat(0xcf9a55, 0.8)); half.position.y = 0.006; half.rotation.z = side * 0.3; g.add(half);
+    }
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.066, 0.09, 14), tan); crown.position.y = 0.05; g.add(crown);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0675, 0.0675, 0.02, 14), brown); band.position.y = 0.025; g.add(band);
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.016, 0.006), stdMat(0xffd23f, 0.35)); buckle.position.set(0, 0.025, 0.069); g.add(buckle);
+    g.scale.setScalar(1.25); g.position.set(0, 0.245, 0.02); g.rotation.z = 0.06; return g;
+  },
+  hatPickle: () => {                                                               // a green pickle standing on Donut's head, with little bumps and a short brim
+    const g = new THREE.Group(), green = stdMat(0x5ea83a, 0.65), dark = stdMat(0x2f6b1c, 0.8);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 6, 14), green); body.position.y = 0.115; g.add(body);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.008, 16), dark); brim.position.y = 0.004; g.add(brim);
+    for (let i = 0; i < 18; i++) {                                                 // bumps spread over the sides and the rounded top, always the same spots
+      const a = i * 2.4, y = 0.04 + (i * 0.037) % 0.2, r = y > 0.19 ? 0.03 : 0.047;
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 5), dark); bump.position.set(Math.sin(a) * r, y, Math.cos(a) * r); g.add(bump);
+    }
+    g.position.set(0, 0.24, 0.02); g.rotation.z = 0.12; return g;
+  },
+  hatTall: () => {                                                                 // a very tall hat of red and white stripes; the top bends over
+    const g = new THREE.Group(), red = stdMat(0xe0242a, 0.7), white = stdMat(0xf5f0e6, 0.7), seg = 0.036;
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.01, 20), red); brim.position.y = 0.005; g.add(brim);
+    const bend = new THREE.Group(); bend.position.y = 0.01 + seg * 6; bend.rotation.z = -0.4; g.add(bend);   // the top three stripes lean to one side
+    for (let i = 0; i < 9; i++) {
+      const r1 = 0.062 - i * 0.0007, r2 = 0.062 - (i + 1) * 0.0007, m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, seg, 14), i % 2 ? white : red);
+      if (i < 6) { m.position.y = 0.01 + seg * i + seg / 2; g.add(m); } else { m.position.y = seg * (i - 6) + seg / 2; bend.add(m); }
+    }
+    g.position.set(0, 0.245, 0.02); return g;
+  }
+};
+const HAT_SIZE = { hatParty: 1.4, hatPirate: 2.0, hatUmbrella: 1.4, hatCap: 1.6, hatCowboy: 1.7, hatPickle: 1.5, hatTall: 1.3 };   // drawn bigger than a real cat's hat, so each one reads at the game camera's distance
+let hatPop = null;
+function wearHat(id) {                                                             // id of a hat, or null to take it off
+  state.hat = id;
+  if (id && !donutHats[id]) {
+    const g = HAT_BUILDERS[id]();
+    g.scale.setScalar(HAT_SIZE[id]); g.userData.base = HAT_SIZE[id];
+    g.traverse(o => { if (o.material) { o.material.emissive = o.material.color.clone(); o.material.emissiveIntensity = 0.3; } });   // a little glow lifts the colors in the dim halls
+    donut.userData.headPivot.add(g); donutHats[id] = g;
+  }
+  for (const k in donutHats) donutHats[k].visible = k === id;
+  if (id && !reducedMotion) hatPop = { g: donutHats[id], t: 0 };                   // the hat pops on (not with reduced motion)
+}
+function updateHatPop(dt) {                                                        // runs a short pop; it waits while a window is open, so it is seen when the window closes
+  if (!hatPop || paused()) return;
+  hatPop.t += dt;
+  const f = Math.min(hatPop.t / 0.35, 1), g = hatPop.g, base = g.userData.base;
+  g.scale.setScalar(base * Math.max(0.05, 1 + 2.70158 * Math.pow(f - 1, 3) + 1.70158 * Math.pow(f - 1, 2)));
+  if (f >= 1) { g.scale.setScalar(base); hatPop = null; }
+}
+function wearFirstHat(id) { if (!state.hat) wearHat(id); }                         // the first hat bought goes straight on Donut; later ones wait in the bag
+for (const id of Object.keys(HAT_BUILDERS)) ITEMS[id].use = {
+  label: () => (state.hat === id ? 'Take off' : 'Put on'),
+  run: () => { wearHat(state.hat === id ? null : id); return state.hat === id ? `Donut is wearing the ${ITEMS[id].short}.` : 'Donut took her hat off.'; }
+};
+
+/* ---- The bag window ---- */
+const bagNote = $('bagNote');
+function renderBag(focusSel) {
+  const box = $('bagItems'); box.textContent = '';
+  const ids = Object.keys(ITEMS).filter(id => invHave(id) > 0);
+  const groups = [['Carrying', ids.filter(id => !ITEMS[id].wear && !ITEMS[id].passive)], ["Donut's hats", ids.filter(id => ITEMS[id].wear)], ['Always active', ids.filter(id => ITEMS[id].passive)]];
+  for (const [title, list] of groups) {
+    if (!list.length) continue;
+    const h = document.createElement('h3'); h.className = 'bagHead'; h.textContent = title; box.append(h);
+    for (const id of list) {
+      const it = ITEMS[id], row = document.createElement('div'); row.className = 'item'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', it.name);
+      const head = document.createElement('strong'), q = document.createElement('span'); head.className = 'itemhead'; q.className = 'price';
+      q.textContent = it.wear || it.passive ? '' : `\u00d7 ${invHave(id)}`; head.append(it.name + ' ', q);
+      const d = document.createElement('span'); d.className = 'd'; d.textContent = it.wear && state.hat === id ? `${it.text} Donut is wearing it.` : it.text;   // a hat says so in words when it is the one Donut has on
+      const line = document.createElement('div'), art = artFor(id), txt = document.createElement('div'); line.className = 'itemline'; art.classList.add('small');
+      txt.append(head, d); line.append(art, txt); row.append(line);
+      if (it.use) {
+        const btns = document.createElement('div'), b = document.createElement('button'); btns.className = 'row';
+        b.type = 'button'; b.textContent = typeof it.use.label === 'function' ? it.use.label() : it.use.label; b.dataset.use = id; b.setAttribute('aria-label', `${b.textContent}: ${it.name}`);
+        btns.append(b); row.append(btns);
+      }
+      box.append(row);
+    }
+  }
+  if (!ids.length) { const p = document.createElement('p'); p.textContent = 'Your bag is empty.'; box.append(p); }
+  const cp = $('bagCoins'); cp.hidden = state.floor < 1; cp.textContent = `Coins: ${state.coins}`;
+  const f = focusSel && bagDlg.querySelector(focusSel); if (f) f.focus();
+}
+function openBag() {
+  if (paused()) return;
+  bagNote.textContent = ''; renderBag(); bagDlg.showModal(); updatePause();
+  (bagDlg.querySelector('[data-use]') || $('bagClose')).focus();
+}
+bagDlg.addEventListener('click', e => {
+  const b = e.target.closest('button[data-use]'); if (!b) return;
+  const id = b.dataset.use, msg = ITEMS[id].use.run(); bagNote.textContent = msg || ''; renderBag(`[data-use="${id}"]`);
+});
+$('bagBtn').addEventListener('click', openBag);
+$('bagClose').addEventListener('click', () => bagDlg.close());
+$('bagX').addEventListener('click', () => bagDlg.close());
+bagDlg.addEventListener('close', updatePause);
+function updateBagButton() { const n = Object.keys(ITEMS).reduce((s, id) => s + (invHave(id) > 0 ? 1 : 0), 0); $('bagBtn').textContent = n ? `Bag (${n})` : 'Bag'; }   // the number is how many kinds of thing are in it
+
+/* ---- Pickups lying in the world: walk over one to put it in the bag ---- */
+const pickups = [];
+function addPickup(id, x, z, parent) {                                             // parent is the surface or floor1 group
+  const it = ITEMS[id], m = it.look ? it.look() : new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), stdMat(0xffd23f, 0.5));
+  m.position.set(x, 0.55, z); parent.add(m); pickups.push({ mesh: m, id, parent, warned: false }); return m;
+}
+function updatePickups(dt) {
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i]; if (!p.parent.visible) continue;
+    p.mesh.rotation.y += 2 * dt;
+    if (Math.hypot(player.position.x - p.mesh.position.x, player.position.z - p.mesh.position.z) >= 1) { p.warned = false; continue; }
+    if (invRoom(p.id) <= 0) {                                                      // the bag cannot take it: it stays where it is, and the player is told once
+      if (!p.warned) { p.warned = true; announce('Note', 'Bag full', `Your bag cannot hold any more of this: ${ITEMS[p.id].name}.`, { silent: true, duration: 4000 }); }
+      continue;
+    }
+    p.parent.remove(p.mesh); pickups.splice(i, 1); invGive(p.id); stickSound();
+    announce('Picked up', ITEMS[p.id].name, ITEMS[p.id].text, { silent: true, duration: 4000 });
+  }
+}
+
+/* ============ The new halls: piñata llamas, confetti, coins and the store ============
+   Two kinds of llama, both built from simple shapes (see pinata-llama-options.html). The pixel block llama is the regular one;
+   the dungeon-worn llama is bigger and tougher and lives deeper in. A llama wanders its hall, and ambles toward the player when it
+   sees one (slower than the player walks). It never attacks. It takes one hit from Stomp, Smack, a thrown coin or Donut, and two
+   from a confetti grenade. When its hits run out it bursts into confetti: pixel squares that fall, lie on the floor and then fade
+   the way a bug's splat fades. Fresh confetti slows the player down (the nail file from the store stops that) and an empty
+   grenade case fills up when the player walks through it. A llama sometimes drops coins as well. */
+const LLAMA = {
+  pixel: { label: 'pixel block', hp: 3, height: 1.2, speed: 1.5, radius: 0.55, respawn: 45, confetti: 130, spread: 1.7, drop: { chance: 0.25, min: 1, max: 1 } },
+  worn:  { label: 'dungeon-worn', hp: 8, height: 1.6, speed: 1.15, radius: 0.7, respawn: 90, confetti: 230, spread: 2.2, drop: { chance: 0.6, min: 1, max: 3 } }
+};
+const BUG_COIN_CHANCE = 0.15;                                           // after meeting Mordecai, a squished bug sometimes leaves a coin
+const CONFETTI_COLORS = [0xff4fa3, 0xffd23f, 0x1fc8b8, 0xff8a1f, 0x3d7bff, 0x9b5de5, 0x5ad65a, 0xff3b3b];   // both llamas use this palette
+const PIXEL_ROWS = [                                                    // the pixel block llama's side view: facing right, 0.08 per square
+  '..........E....', '.........HHH...', '.........HYHS..', '.........HHHS..', '.........NN....', '.........NN....', '.........NN....',
+  '.BBBBBBBBBB....', 'TBBBBBBBBBB....', '.BBBBBBBBBB....', '.BBBBBBBBBB....', '..L......L.....', '..L......L.....', '..K......K.....'
+];
+const LLAMA_GLOW = 1.7;                                                // the halls are dim, so the llamas' colors are lifted a little to stay bright
+const _lm = {};
+const lmat = (c, flat = true) => _lm[c + '|' + flat] || (_lm[c + '|' + flat] = new THREE.MeshStandardMaterial({ color: new THREE.Color(c).multiplyScalar(LLAMA_GLOW), roughness: 0.85, flatShading: flat }));
+function lput(p, mesh, x, y, z, rot, scale) { mesh.position.set(x, y, z); if (rot) mesh.rotation.set(rot[0], rot[1], rot[2]); if (scale) mesh.scale.set(scale[0], scale[1], scale[2]); p.add(mesh); return mesh; }
+const lbox = (p, w, h, d, c, x, y, z, rot) => lput(p, new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lmat(c)), x, y, z, rot);
+const lsph = (p, r, c, x, y, z, seg = 8) => lput(p, new THREE.Mesh(new THREE.SphereGeometry(r, seg, Math.max(6, seg - 2)), lmat(c)), x, y, z);
+const lcyl = (p, rt, rb, h, c, x, y, z, seg = 7) => lput(p, new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), lmat(c)), x, y, z);
+const lcone = (p, r, h, c, x, y, z, rot, seg = 5) => lput(p, new THREE.Mesh(new THREE.ConeGeometry(r, h, seg), lmat(c)), x, y, z, rot);
+const ltor = (p, R, t, c, x, y, z, rot) => lput(p, new THREE.Mesh(new THREE.TorusGeometry(R, t, 6, 20), lmat(c)), x, y, z, rot);
+
+function buildPixelLlama(height) {                                      // one instanced mesh: every square is one instance, so a whole llama is one draw
+  const s = 0.08, cs = 0.076, cubes = [], rain = [0xff4fa3, 0xffd23f, 0x1fc8b8, 0xff8a1f, 0x3d7bff, 0x9b5de5, 0x5ad65a];
+  PIXEL_ROWS.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      const ch = row[c]; if (ch === '.') continue;
+      const y = (PIXEL_ROWS.length - 1 - r) * s + s / 2, z = (c - 7) * s, cube = (x, col) => cubes.push([x * s, y, z, col]);
+      if (ch === 'B') { for (let x = -2; x <= 2; x++) if (Math.abs(x) === 2 || r === 7 || r === 10 || c === 1 || c === 10) cube(x, rain[(c + r + Math.abs(x)) % rain.length]); }
+      else if (ch === 'H') for (let x = -1; x <= 1; x++) cube(x, 0xff4fa3);
+      else if (ch === 'Y') for (let x = -1; x <= 1; x++) cube(x, x === 0 ? 0xff4fa3 : 0x2b2233);
+      else if (ch === 'S') for (let x = -1; x <= 1; x++) cube(x, 0xfff1d6);
+      else if (ch === 'N') for (let x = -1; x <= 1; x++) cube(x, [0xffd23f, 0x1fc8b8, 0xff8a1f][r % 3]);
+      else if (ch === 'E') { cube(-1, 0xffd23f); cube(1, 0xffd23f); }
+      else if (ch === 'T') cube(0, 0xff8a1f);
+      else if (ch === 'L') { cube(-2, [0x1fc8b8, 0xffd23f][r % 2]); cube(2, [0x1fc8b8, 0xffd23f][r % 2]); }
+      else if (ch === 'K') { cube(-2, 0x2b2233); cube(2, 0x2b2233); }
+    }
+  });
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(cs, cs, cs), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }), cubes.length);
+  const m4 = new THREE.Matrix4(), col = new THREE.Color();
+  cubes.forEach((q, i) => { mesh.setMatrixAt(i, m4.makeTranslation(q[0], q[1], q[2])); mesh.setColorAt(i, col.setHex(q[3]).multiplyScalar(LLAMA_GLOW)); });
+  mesh.frustumCulled = false; mesh.position.z = 0.12;
+  const g = new THREE.Group(); g.add(mesh); g.scale.setScalar(height / (PIXEL_ROWS.length * s));
+  return g;
+}
+
+function buildWornLlama(height) {
+  const g = new THREE.Group(), BODY = 0x8a4fb0, DEEP = 0x5b3f86, TAPE = 0xa3a9b3, INK = 0x1a1020, MUST = 0xe9c46a;
+  const P = { pink: 0xff4fa3, yel: 0xffd23f, teal: 0x1fc8b8, org: 0xff8a1f, blue: 0x3d7bff };
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), lmat(BODY)); body.position.set(0, 0.62, 0); body.scale.set(0.24, 0.215, 0.39); g.add(body);
+  [[-0.12, -0.25, DEEP], [0.12, -0.25, DEEP], [-0.12, 0.22, 0xd9468f], [0.12, 0.22, DEEP]].forEach(l => { lcyl(g, 0.05, 0.06, 0.42, l[2], l[0], 0.21, l[1]); lcyl(g, 0.066, 0.07, 0.05, INK, l[0], 0.025, l[1]); });
+  ltor(g, 0.062, 0.014, TAPE, 0.12, 0.27, -0.25, [Math.PI / 2, 0, 0]); ltor(g, 0.062, 0.014, TAPE, 0.12, 0.2, -0.25, [Math.PI / 2, 0, 0]);
+  lbox(g, 0.34, 0.016, 0.1, TAPE, 0, 0.832, -0.08, [0, 0.5, 0]); lbox(g, 0.02, 0.1, 0.3, TAPE, -0.232, 0.66, 0.12, [0.25, 0, 0]); lbox(g, 0.02, 0.13, 0.13, MUST, 0.2, 0.72, -0.2);
+  [[0.7, 0], [0.64, 0.04], [0.58, -0.01], [0.52, 0.03]].forEach((p, i) => lbox(g, 0.02, 0.05, 0.035, INK, 0.228 + (i % 2) * 0.004, p[0], p[1], [0, 0, 0.3 * (i % 2 ? 1 : -1)]));   // a cracked seam
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.2, 0.05), new THREE.MeshStandardMaterial({ color: 0xffcf5a, emissive: 0xffb020, emissiveIntensity: 0.9 })); glow.position.set(0.226, 0.62, 0); g.add(glow);
+  [[0.7, P.pink], [0.64, P.teal], [0.58, P.yel], [0.66, P.org], [0.55, P.blue]].forEach((p, i) => lbox(g, 0.03, 0.03, 0.03, p[1], 0.245, p[0], -0.01 + (i - 2) * 0.02, [i, i * 2, i * 3]));   // confetti peeking out
+  lcyl(g, 0.085, 0.125, 0.52, BODY, 0, 0.97, 0.34).rotation.x = 0.3;
+  for (let i = 0; i < 6; i++) { const side = i % 2 ? 1 : -1; lbox(g, 0.035, 0.12 + (i % 3) * 0.03, 0.006, [P.pink, P.yel, P.teal][i % 3], side * 0.075, 0.9 - i * 0.04, 0.32 + i * 0.055, [0.1, side * 0.9, side * 0.2]); }   // torn paper strips
+  const head = new THREE.Group(); head.position.set(0, 1.25, 0.52); head.rotation.z = 0.2; g.add(head);                              // the head sits a little crooked
+  const hm = new THREE.Mesh(new THREE.DodecahedronGeometry(0.15, 0), lmat(BODY)); hm.scale.set(0.85, 0.95, 1.2); head.add(hm);
+  lbox(head, 0.12, 0.1, 0.15, 0xd8cfe6, 0, -0.045, 0.15); lbox(head, 0.07, 0.04, 0.02, INK, 0, -0.01, 0.23);
+  [-1, 1].forEach(s => { lbox(head, 0.006, 0.01, 0.15, INK, s * 0.062, -0.075, 0.15); for (let k = 0; k < 5; k++) lbox(head, 0.008, 0.035, 0.008, INK, s * 0.063, -0.075, 0.09 + k * 0.03); });   // the stitched grin
+  lsph(head, 0.05, 0xffffff, -0.118, 0.045, 0.07, 10); lsph(head, 0.022, INK, -0.158, 0.06, 0.085); lsph(head, 0.036, INK, 0.122, 0.045, 0.07);   // one real eye, one button
+  lbox(head, 0.006, 0.07, 0.008, 0xe8e0f0, 0.153, 0.045, 0.07, [0.78, 0, 0]); lbox(head, 0.006, 0.07, 0.008, 0xe8e0f0, 0.153, 0.045, 0.07, [-0.78, 0, 0]);
+  lcone(head, 0.045, 0.17, BODY, -0.07, 0.2, -0.02); lcone(head, 0.045, 0.17, BODY, 0.1, 0.12, -0.02, [0, 0, -1.25]); lbox(head, 0.05, 0.02, 0.05, TAPE, 0.1, 0.13, -0.02, [0, 0, -1.25]);   // one ear up, one flopped
+  lsph(g, 0.06, DEEP, 0, 0.7, -0.41, 6);
+  for (let t = -1; t <= 1; t++) lbox(g, 0.03, 0.13, 0.006, [P.pink, P.yel, P.teal][t + 1], t * 0.04, 0.62, -0.44, [0.2, 0, t * 0.25]);
+  const h = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()).y;
+  g.scale.setScalar(height / h);
+  return g;
+}
+
+/* ---- The llamas: where they live, how they move, how they are hit ---- */
+const LLAMA_ZONES = { a: [-3.2, -0.8, -24, -14], b: [1, 19, -25.2, -22.8], c: [16.8, 19.2, -21, -13], deep: [21, 33, -19, -11] };   // x0, x1, z0, z1 for each stretch of the new halls
+const LLAMA_SPAWNS = [['pixel', 'a'], ['pixel', 'b'], ['pixel', 'b'], ['pixel', 'c'], ['worn', 'deep'], ['worn', 'deep']];      // the regular ones first, the tough ones deepest
+const llamas = [];
+function pickLlamaSpot(zoneName, minDist = 6) {
+  const z = LLAMA_ZONES[zoneName]; let p;
+  for (let i = 0; i < 30; i++) { p = { x: z[0] + Math.random() * (z[1] - z[0]), z: z[2] + Math.random() * (z[3] - z[2]) }; if (Math.hypot(p.x - player.position.x, p.z - player.position.z) >= minDist) break; }
+  return p;
+}
+function spawnLlamas() {
+  for (const l of llamas) floor1.remove(l);
+  llamas.length = 0;
+  for (const [kind, zone] of LLAMA_SPAWNS) {
+    const def = LLAMA[kind], root = new THREE.Group(), model = kind === 'pixel' ? buildPixelLlama(def.height) : buildWornLlama(def.height), spot = pickLlamaSpot(zone);
+    root.add(model); root.position.set(spot.x, 0, spot.z);
+    root.userData = { isLlama: true, kind, zone, hp: def.hp, state: 'wander', t: 0, model, base: model.scale.x, heading: Math.random() * 6.28, tx: null, tz: null, wait: Math.random() * 2, walkT: 0,
+                      hold: false, escort: false, flinch: 0, near: 0, met: false, attacked: false, usedCoin: false, phase: Math.random() * 6.28 };
+    floor1.add(root); llamas.push(root);
+  }
+}
+function respawnLlama(l) {
+  const k = l.userData, def = LLAMA[k.kind], spot = pickLlamaSpot(k.zone);
+  l.position.set(spot.x, 0, spot.z); l.visible = true; l.scale.setScalar(0.001);
+  Object.assign(k, { hp: def.hp, state: 'spawning', t: 0, tx: null, wait: 1, flinch: 0, near: 0, met: false, attacked: false, usedCoin: false, hold: false, escort: false });
+  k.model.scale.setScalar(k.base);
+}
+function updateLlama(l, dt, time) {
+  const k = l.userData, def = LLAMA[k.kind], m = k.model, frozen = paused();
+  if (k.state === 'gone') { if (!frozen) { k.t += dt; if (k.t >= def.respawn) respawnLlama(l); } return; }
+  if (k.state === 'spawning') {
+    k.t += dt; const f = Math.min(k.t / 0.4, 1);
+    l.scale.setScalar(Math.max(1 + 2.70158 * Math.pow(f - 1, 3) + 1.70158 * Math.pow(f - 1, 2), 0.001));
+    if (f >= 1) { k.state = 'wander'; l.scale.setScalar(1); }
+    return;
+  }
+  const px = player.position.x, pz = player.position.z, dist = Math.hypot(px - l.position.x, pz - l.position.z);
+  let moving = false;
+  if (!frozen && !k.hold && !k.escort) {
+    let tx = null, tz = null;
+    if (dist < 7 && pz < -13.5 && px > -4.5) { if (dist > 1.9) { tx = px; tz = pz; } }          // a llama that sees the player ambles over and stops an arm's length away
+    else {
+      k.wait -= dt;
+      if (k.wait <= 0) {
+        if (k.tx === null) { const z = LLAMA_ZONES[k.zone]; k.tx = z[0] + Math.random() * (z[1] - z[0]); k.tz = z[2] + Math.random() * (z[3] - z[2]); k.walkT = 0; }
+        tx = k.tx; tz = k.tz;
+        if (Math.hypot(tx - l.position.x, tz - l.position.z) < 0.4 || (k.walkT += dt) > 8) { k.tx = null; k.wait = 1 + Math.random() * 2.5; tx = null; }
+      }
+    }
+    if (tx !== null) {
+      k.heading += wrap(Math.atan2(tx - l.position.x, tz - l.position.z) - k.heading) * (1 - Math.exp(-5 * dt));
+      const ox = l.position.x, oz = l.position.z;
+      l.position.x += Math.sin(k.heading) * def.speed * dt; l.position.z += Math.cos(k.heading) * def.speed * dt;
+      resolve(l.position, def.radius);
+      if (l.position.z > -13.3) l.position.z = -13.3;                                // llamas never go back through the doorway
+      if (l.position.x > 0.2 && l.position.x < 8.2 && l.position.z > -20.2 && l.position.z < -13.8) { l.position.x = ox; l.position.z = oz; k.tx = null; }   // and the store is not for them
+      moving = true;
+    }
+  }
+  l.rotation.y = k.heading;
+  const bob = moving && !reducedMotion ? Math.sin(time * 7 + k.phase) : 0;
+  m.position.y = Math.abs(bob) * 0.06; m.rotation.z = bob * 0.05;
+  if (k.flinch > 0) {                                                               // a hit: squash, wobble, settle
+    k.flinch = Math.max(0, k.flinch - dt);
+    const f = reducedMotion ? 0 : Math.sin(k.flinch / 0.35 * Math.PI);
+    m.scale.set(k.base * (1 + 0.16 * f), k.base * (1 - 0.2 * f), k.base * (1 + 0.16 * f)); m.rotation.z += f * 0.12;
+  }
+  if (!frozen) {                                                                    // "You can't run away forever": met a llama, then left without a fight
+    k.near = dist < 3.2 ? k.near + dt : 0;
+    if (k.near > 0.8) k.met = true;
+    if (k.met && dist > 9) { if (!k.attacked) state.llamaEscapes++; k.met = false; k.attacked = false; }
+  }
+}
+function pushOutOfLlamas() {                                                       // a llama is solid: the player cannot walk into it
+  for (const l of llamas) {
+    const k = l.userData; if (k.state !== 'wander') continue;
+    const min = LLAMA[k.kind].radius + 0.5, dx = player.position.x - l.position.x, dz = player.position.z - l.position.z, d = Math.hypot(dx, dz);
+    if (d < min && d > 0) { player.position.x = l.position.x + dx / d * min; player.position.z = l.position.z + dz / d * min; resolve(player.position, 0.5); }
+  }
+}
+function hitLlama(l, how, dmg = 1) {                                               // how: 'feet', 'hand', 'thrown', 'donut' or 'grenade'
+  const k = l.userData; if (k.state !== 'wander') return false;
+  k.hp = Math.max(0, k.hp - dmg); k.attacked = true; k.flinch = 0.35; if (how === 'thrown') k.usedCoin = true;
+  if (k.hp <= 0) burstLlama(l); else thumpSound();
+  return true;
+}
+function burstLlama(l) {
+  const k = l.userData, def = LLAMA[k.kind];
+  burstSound(); spawnConfetti(l.position.x, l.position.z, def);
+  if (Math.random() < def.drop.chance) {
+    const n = def.drop.min + Math.floor(Math.random() * (def.drop.max - def.drop.min + 1));
+    for (let i = 0; i < n; i++) dropCoin(l.position.x + (Math.random() - 0.5) * 1.6, l.position.z + (Math.random() - 0.5) * 1.6, true);
+  }
+  k.state = 'gone'; k.t = 0; l.visible = false; k.hold = false; k.escort = false;
+  state.llamas[k.kind]++; if (k.kind === 'worn' && !k.usedCoin) state.wornNoCoin++;
+  checkAchievements();
+}
+function dropCoin(x, z, fromLlama) {                                               // a coin lands near (x, z), pushed clear of any wall
+  const p = new THREE.Vector3(x, 0, z); resolve(p, 0.5);
+  const c = new THREE.Mesh(coinGeo, coinMat); c.position.set(p.x, 1, p.z); c.castShadow = true; c.scale.setScalar(0.01);
+  c.userData = { dropped: true, fromLlama: !!fromLlama, pop: 0 };
+  floor1.add(c); coins.push(c);
+}
+
+/* ---- Confetti: a burst of flat squares. They fall, lie where they land, and after that fade over BUG_RESPAWN seconds like a bug's splat. ---- */
+const piles = [], pileGeo = new THREE.BoxGeometry(0.1, 0.02, 0.1);
+const _pm = new THREE.Matrix4(), _pq = new THREE.Quaternion(), _pe = new THREE.Euler(), _ps = new THREE.Vector3(1, 1, 1), _pp = new THREE.Vector3(), _pc = new THREE.Color();
+function writePiece(p, i) {
+  _pp.set(p.px[i * 3], p.px[i * 3 + 1], p.px[i * 3 + 2]); _pe.set(p.rot[i * 3], p.rot[i * 3 + 1], p.rot[i * 3 + 2]); _pq.setFromEuler(_pe);
+  p.mesh.setMatrixAt(i, _pm.compose(_pp, _pq, _ps));
+}
+function stepPile(p, dt) {
+  for (let i = 0; i < p.n; i++) {
+    if (p.landed[i]) continue;
+    p.v[i * 3 + 1] -= 9.8 * dt;
+    for (let a = 0; a < 3; a++) { p.px[i * 3 + a] += p.v[i * 3 + a] * dt; p.rot[i * 3 + a] += p.spin[i * 3 + a] * dt; }
+    if (p.px[i * 3 + 1] <= 0.012) { p.px[i * 3 + 1] = 0.012 + (i % 7) * 0.0015; p.rot[i * 3] = 0; p.rot[i * 3 + 2] = 0; p.landed[i] = 1; p.landedCount++; }   // it lies flat, turned any way
+    writePiece(p, i);
+  }
+  p.mesh.instanceMatrix.needsUpdate = true;
+}
+function spawnConfetti(x, z, def) {
+  const n = def.confetti, mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false });
+  const mesh = new THREE.InstancedMesh(pileGeo, mat, n); mesh.frustumCulled = false;
+  const p = { mesh, mat, n, x, z, radius: def.spread * 0.85, px: new Float32Array(n * 3), v: new Float32Array(n * 3), rot: new Float32Array(n * 3), spin: new Float32Array(n * 3), landed: new Uint8Array(n), landedCount: 0, fade: 0, collected: false };
+  for (let i = 0; i < n; i++) {
+    mesh.setColorAt(i, _pc.setHex(CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)]));
+    const a = Math.random() * Math.PI * 2, sp = (def.spread / 0.9) * Math.pow(Math.random(), 0.6);
+    p.px[i * 3] = x + (Math.random() - 0.5) * 0.4; p.px[i * 3 + 1] = def.height * 0.55 + (Math.random() - 0.5) * 0.4; p.px[i * 3 + 2] = z + (Math.random() - 0.5) * 0.4;
+    p.v[i * 3] = Math.cos(a) * sp; p.v[i * 3 + 1] = 2.5 + Math.random() * 2.2; p.v[i * 3 + 2] = Math.sin(a) * sp;
+    p.rot[i * 3 + 1] = Math.random() * Math.PI * 2;
+    for (let q = 0; q < 3; q++) p.spin[i * 3 + q] = (Math.random() - 0.5) * 16;
+    writePiece(p, i);
+  }
+  mesh.instanceColor.needsUpdate = true; mesh.instanceMatrix.needsUpdate = true;
+  floor1.add(mesh); piles.push(p);
+  if (reducedMotion) { let guard = 0; while (p.landedCount < p.n && guard++ < 200) stepPile(p, 0.05); }   // reduced motion: the confetti is simply there, already on the floor
+}
+function updatePiles(dt) {
+  for (let pi = piles.length - 1; pi >= 0; pi--) {
+    const p = piles[pi];
+    if (p.landedCount < p.n) stepPile(p, dt);
+    else {
+      p.fade += dt; p.mat.opacity = 0.9 * Math.max(0, 1 - p.fade / BUG_RESPAWN);     // the same fade as a bug's splat
+      if (p.fade >= BUG_RESPAWN) { floor1.remove(p.mesh); p.mesh.dispose(); p.mat.dispose(); piles.splice(pi, 1); }
+    }
+  }
+}
+function speedMul() {                                                              // confetti on the floor slows the player, unless they own the nail file
+  if (state.floor !== 1 || invHave('file')) return 1;
+  const slow = piles.some(p => p.landedCount > 0 && Math.hypot(player.position.x - p.x, player.position.z - p.z) < p.radius);
+  if (slow && !state.confettiHint) { state.confettiHint = true; announce('Note', 'Confetti', 'Walking through confetti slows you down.', { silent: true, duration: 6000 }); }
+  return slow ? 0.5 : 1;
+}
+function collectConfetti() {                                                       // an empty grenade case fills when the player walks into fresh confetti
+  if (invHave('caseEmpty') <= 0) return;
+  for (const p of piles) {
+    if (p.collected || p.landedCount < p.n * 0.5) continue;
+    if (Math.hypot(player.position.x - p.x, player.position.z - p.z) < p.radius * 0.8) {
+      p.collected = true; invTake('caseEmpty'); invGive('caseFull'); fillSound(); updateHud();
+      announce('Confetti', 'Case filled', 'A grenade case is full of confetti.', { silent: true, duration: 4000 });
+      if (invHave('caseEmpty') <= 0) return;
+    }
+  }
+}
+
+/* ---- Dealing with a llama: the same menu as a bug, but the menu stays open between hits ---- */
+let menuLlama = null;
+const grenadeBtn = bugDlg.querySelector('[data-act="grenade"]');
+function setMenuTexts(forLlama) {                                                  // the menu's wording for a bug or for a llama
+  if (forLlama) $('stompInfo').textContent = 'With your foot. One hit.';           // (for a bug, openBugMenu words this one, since it depends on floor or wall)
+  $('smackInfo').textContent = forLlama ? 'With your hand. One hit.' : 'With your hand. Works on the floor and the walls.';
+  $('throwInfo').textContent = state.coins > 0 ? `Costs one coin.${forLlama ? ' One hit.' : ''} Coins left: ${state.coins}.` : 'You have no coins left.';
+  $('donutInfo').textContent = forLlama ? 'She runs over and bats it. One hit.' : 'She runs over and squishes it for you.';
+  grenadeBtn.hidden = invHave('caseFull') <= 0;
+  $('grenadeInfo').textContent = forLlama ? `Uses a full case. Two hits. Full cases: ${invHave('caseFull')}.` : `Uses a full case. Full cases: ${invHave('caseFull')}.`;
+  throwBtn.setAttribute('aria-disabled', String(state.coins <= 0));
+}
+function refreshLlamaMenu(l, note) {
+  const k = l.userData, def = LLAMA[k.kind];
+  $('bugTitle').textContent = `A ${def.label} piñata llama`;
+  $('bugDesc').textContent = `It has ${k.hp} of ${def.hp} hits left. How do you want to deal with it?`;
+  stompBtn.setAttribute('aria-disabled', 'false'); setMenuTexts(true);
+  $('bugNote').textContent = note || '';
+}
+function openLlamaMenu(l) {
+  if (menuBug || menuLlama || l.userData.state !== 'wander' || l.userData.escort) return;
+  menuLlama = l; l.userData.hold = true;
+  refreshLlamaMenu(l, ''); bugDlg.showModal(); updatePause();
+}
+function chooseLlamaAction(act) {
+  const l = menuLlama; if (!l) return;
+  const k = l.userData, note = $('bugNote');
+  if (act === 'throw' && state.coins <= 0) { note.textContent = 'You have no coins left to throw.'; return; }
+  if (act === 'grenade' && invHave('caseFull') <= 0) { note.textContent = 'You have no full grenade case.'; return; }
+  if (act === 'donut') { bugDlg.close(); k.escort = true; donutErrand = { bug: l, t: 0 }; return; }
+  const dmg = act === 'grenade' ? 2 : 1, how = { stomp: 'feet', smack: 'hand', throw: 'thrown', grenade: 'grenade' }[act];
+  if (act === 'throw') state.coins--;
+  if (act === 'grenade') { invTake('caseFull'); invGive('caseEmpty'); }
+  updateHud();
+  if (k.hp - dmg <= 0) bugDlg.close();                                             // the last hit: close the menu first, so the achievement popups are not hidden behind it
+  hitLlama(l, how, dmg);
+  if (k.state === 'wander') refreshLlamaMenu(l, `${{ stomp: 'Stomp', smack: 'Smack', throw: 'Coin', grenade: 'Boom' }[act]}! It has ${k.hp} hit${k.hp === 1 ? '' : 's'} left.`);
+}
+
+const { STORE_ITEMS, openStore, cartAdd, cartRemove, emptyCart, buyCart } = createShop({ state, $, storeDlg, invRoom, invGive, coinSound, updateHud, updatePause, checkAchievements });   // the store's mechanics live in shop.js
+
+
+
+// --- Achievements: a list, so adding one is adding a row. Each has a test that is checked after anything that could change it. ---
+const COIN_TOTAL = coins.length;
+const ACHIEVEMENTS = [
+  { id: 'feet',     title: 'Footwork',                       text: `You squished ${FEET_TO_OPEN_DOOR} bugs with your feet.`,             test: () => state.squish.feet >= FEET_TO_OPEN_DOOR, then: unlockDoor },   // the secret one: it opens the great door
+  { id: 'hand',     title: 'Hands on',                       text: 'You smacked a bug with your bare hand.',                            test: () => state.squish.hand >= 1 },
+  { id: 'money',    title: 'Throwing money at the problem',  text: 'You threw a coin at a bug. It did not take payment.',               test: () => state.squish.thrown >= 1 },
+  { id: 'delegate', title: 'Delegation',                     text: 'You made the cat do it. She will remember this.',                   test: () => state.squish.donut >= 1 },
+  { id: 'pest',     title: 'Pest control',                   text: 'You have squished 25 bugs. More are coming.',                       test: () => state.squished >= 25 },
+  { id: 'curious',  title: 'Curious crawler',                text: 'You walked into a dead end just to see what was there.',            test: () => state.sideVisited },
+  { id: 'pocket',   title: 'Pocket change',                  text: 'You collected every coin on this floor.',                           test: () => state.coinsTaken >= COIN_TOTAL },
+  { id: 'knock',    title: 'Knock, knock',                   text: 'You tried the locked door five times. It heard you the first time.', test: () => state.doorTries >= 5 },
+  { id: 'hug',      title: 'Wall hugger',                    text: 'You spent ten seconds walking into walls. The walls held.',         test: () => state.wallTime >= 10 },
+  { id: 'dizzy',    title: 'Dizzy',                          text: 'You turned the camera around three times. Nothing new back there.', test: () => state.camTurns >= 3 },
+  { id: 'hat',      title: 'Hat trick',                      text: 'You squished three bugs of the same color in a row.',               test: () => state.lastColors.length === 3 && state.lastColors.every(c => c === state.lastColors[0]) },
+  { id: 'variety',  title: 'Variety pack',                   text: 'You have squished bugs with your feet, your hand, a coin and a cat.', test: () => Object.values(state.squish).every(n => n > 0) },
+  { id: 'spender',  title: 'Big spender',                    text: 'You threw every last coin at the bugs. They were not impressed.',   test: () => state.squish.thrown >= 3 && state.coins === 0 },
+  { id: 'marathon', title: 'Marathon',                       text: 'You have walked 500 units. The dungeon is not that big.',           test: () => state.walked >= 500 },
+  { id: 'patience', title: 'Patience',                       text: 'You stood still for 45 seconds. The dungeon waited with you.',      test: () => state.idle >= 45 },
+  { id: 'atmosphere', title: 'Atmosphere',                   text: 'You turned the music on. The dungeon seems to approve.',            test: () => !music.paused && achieved.has('entry') },   // after the arrival popups, never in the middle of them
+  // The new halls (placeholder wording: edit freely)
+  { id: 'second',   title: 'Second wind',                    text: 'You left Mordecai and walked through the new doorway.',             test: () => state.met && state.enteredAnnex },
+  { id: 'burst1',   title: 'First burst',                    text: 'You burst a pixel block llama. Confetti everywhere.',               test: () => state.llamas.pixel >= 1 },
+  { id: 'party10',  title: "Party's over",                   text: 'You have burst ten pixel block llamas.',                            test: () => state.llamas.pixel >= 10 },
+  { id: 'worn1',    title: 'Not a party favor',              text: 'You burst a dungeon-worn llama. It took a while.',                  test: () => state.llamas.worn >= 1 },
+  { id: 'storm',    title: 'Confetti storm',                 text: 'Five piles of confetti at once. Someone will have to sweep that.', test: () => piles.length >= 5 },
+  { id: 'nocoin',   title: 'No coin, no problem',            text: 'You burst a dungeon-worn llama without throwing a coin at it.',     test: () => state.wornNoCoin >= 1 },
+  { id: 'runaway',  title: "You can't run away forever",     text: 'You met a llama and chose not to fight it. It knows where you are.', test: () => state.llamaEscapes >= 1 },
+  { id: 'payout',   title: 'Pi\u00f1ata payout',                 text: 'You collected ten coins that llamas dropped.',                      test: () => state.llamaCoins >= 10 },
+  { id: 'window',   title: 'Window shopper',                 text: 'You looked around the store and left without buying anything.',     test: () => state.windowShopped },
+  { id: 'retail',   title: 'Retail therapy',                 text: 'You bought something from the store.',                              test: () => state.bought >= 1 }
+];
+function checkAchievements() {
+  if (state.floor < 1 || state.busy) return;                            // none on the surface, and none while the descent is still fading in
+  for (const a of ACHIEVEMENTS) if (!achieved.has(a.id) && a.test()) { achieve(a.id, a.title, a.text); if (a.then) a.then(); }
+}
+let lastAz = null, camTurned = 0;
+async function talkToMordecai() {                                       // the end of the first bit (placeholder wording; edit freely)
+  mordecai.userData.talking = 3;
+  await sleep(1300);
+  $('finishSpeech').textContent = state.met ? 'The new door is in the south wall of the long hall. There is more to explore now. Go on, crawler.' : 'Sit down, crawler. You are alive, which is more than most of the people who came through that door can say. There is a great deal to learn, and very little time to learn it. And there is more to explore than you think. When you leave, look along the south wall of the long hall.';
+  $('finishStats').textContent = `Places visited: ${state.places.size} of ${PLACE_TOTAL}. Coins: ${state.coins}. Sticks: ${invHave('stick')}. Achievements: ${achievedTitles.length ? achievedTitles.join(', ') : 'none'}.`;
+  finishDlg.showModal(); updatePause();
+  $('keep').focus();
+}
+$('keep').addEventListener('click', () => finishDlg.close());
+$('finishClose').addEventListener('click', () => finishDlg.close());
+finishDlg.addEventListener('close', () => { if (!state.met) { state.met = true; openAnnexDoor(); } });   // however the talk ends (Leave, the close button or Escape), the first time it ends the new doorway opens
+$('again').addEventListener('click', () => location.reload());
+
+function askDescend() {
+  const left = sticks.length;                                          // sticks still lying on the surface
+  $('confirmText').textContent = `The sign above the stairs reads: "${INSCRIPTION}." There is no way back up. Anything you leave on the surface stays here.${left > 0 ? ` Sticks left behind: ${left}.` : ''}`;
+  confirmDlg.showModal(); updatePause();
+  $('stay').focus();                                                   // the safe choice is focused first
+}
+
+const fade = async to => { $('fade').style.opacity = to; await sleep(reducedMotion ? 0 : 520); };
+async function descend() {
+  state.busy = true; updatePause();
+  await fade(1);
+  clearToasts();                                                       // the surface popups (the terms) do not follow the player down
+  // The surface is gone for good: it is hidden and its collision is replaced, so nothing leads back.
+  surface.visible = false; floor1.visible = true;
+  setEnvironment('floor1');
+  active.list = floor1Colliders; active.bounds = { type: 'rect', hw: 60, hd: 60 };
+  interactables = [doorSpot, mordecaiSpot];
+  state.floor = 1; $('floorLabel').textContent = 'Floor 1'; $('coinsWrap').hidden = false; updateHud();
+  player.position.set(-18, 0, 13); player.rotation.y = Math.PI / 2;      // in the entry hall, facing east toward hall A
+  donut.position.set(-17, 0, 14.5); donut.userData.heading = Math.PI / 2; donut.userData.following = false;
+  camera.position.set(-22.5, 3.0, 13); controls.target.set(-18, 1.4, 13);
+  controls.maxDistance = 8;
+  spawnBugs(); spawnLlamas(); lastAz = null; camTurned = 0;
+  await sleep(150);
+  await fade(0);
+  state.busy = false; updatePause();
+  visitPlace('stairs');
+  achieve('down', 'Going down', 'You have entered the dungeon.');
+  achieve('cat', 'Plus one', 'You brought a cat along. She did not ask to come.');
+  if (invHave('stick') === 0) achieve('unarmed', 'Bare hands', 'You went into the dungeon without a weapon.');   // a stick in your pocket cancels this
+  await sleep(1700);
+  visitPlace('entry');
+  achieve('entry', 'Welcome to the neighborhood', 'You have reached the entry hall.');
+}
+
+/* ============ The game loop ============ */
+const clock = new THREE.Clock();
+const _lookAt = new THREE.Vector3(), _errand = new THREE.Vector3();
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), dir = new THREE.Vector3(), before = new THREE.Vector3();
+
+// The camera on Floor 1. OrbitControls decides where the camera WANTS to be (so dragging to look around still works).
+// Then a ray is cast from the player's head toward that spot; if a wall, floor or ceiling is in the way, the camera is
+// moved in front of it, so it never ends up inside the stonework. The wanted position is put back before the next frame,
+// so the camera slides back out again as soon as there is room.
+const camDesired = new THREE.Vector3(), camDir = new THREE.Vector3(), camRay = new THREE.Raycaster();
+let camAdjusted = false, camRendered = new THREE.Vector3();
+// OrbitControls also moves the camera on its own, between frames, every time the mouse moves or the wheel turns. If the camera is sitting
+// at its pulled-in position at that moment, the turn would be applied to the wrong spot and then lost when the frame restores the wanted
+// position. So the restore happens inside the controls' own update: whoever moves the camera, it always starts from the wanted position.
+const orbitUpdate = controls.update.bind(controls);
+controls.update = (...args) => { if (camAdjusted) { camera.position.copy(camDesired); camAdjusted = false; } return orbitUpdate(...args); };
+function keepCameraInside() {
+  camDesired.copy(camera.position);
+  camDir.subVectors(camera.position, controls.target);
+  const dist = camDir.length(); camDir.divideScalar(dist);
+  camRay.set(controls.target, camDir); camRay.far = dist + 1.5;
+  const hit = camRay.intersectObjects(levelSolids, false)[0];
+  if (hit) {
+    // Stop short of the surface by a fixed clearance measured straight out from it (not along the ray), so a camera skimming
+    // along a wall is not left a hair's breadth away, which would let the camera's near edge cut through the wall.
+    const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+    const facing = Math.abs(n.dot(camDir));                              // 1 = looking straight at it, near 0 = skimming along it
+    const allowed = hit.distance - Math.min(1.5, 0.25 / Math.max(facing, 0.05));
+    if (allowed < dist) { camera.position.copy(controls.target).addScaledVector(camDir, Math.max(0.15, allowed)); camAdjusted = true; }
+  }
+  // Last, near an inside corner (or the end of a wall) the camera can still be close to a second surface. Look 0.2 in each of
+  // ten directions and push the camera back out of anything that close.
+  for (let pass = 0; pass < 3; pass++) {                               // pushing away from one surface can bring another close, so repeat (up to three times)
+    let moved = false;
+    for (const a of CLEAR_AXES) {
+      camRay.set(camera.position, a); camRay.far = 0.2;
+      const near = camRay.intersectObjects(levelSolids, false)[0];
+      if (near) { camera.position.addScaledVector(a, -(0.2 - near.distance)); camAdjusted = true; moved = true; }
+    }
+    if (!moved) break;
+  }
+}
+const CLEAR_AXES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 0, 1], [1, 0, -1], [-1, 0, 1], [-1, 0, -1]].map(v => new THREE.Vector3(...v).normalize());   // six straight directions and four horizontal diagonals
+// A test hook: runs the real keepCameraInside() for a made-up player position and wanted camera position, then puts everything back.
+function cameraTest(tx, tz, cx, cy, cz) {
+  const sp = camera.position.clone(), st = controls.target.clone(), sa = camAdjusted, sd = camDesired.clone();
+  controls.target.set(tx, 1.4, tz); camera.position.set(cx, cy, cz); keepCameraInside();
+  const result = camera.position.toArray();
+  camera.position.copy(sp); controls.target.copy(st); camAdjusted = sa; camDesired.copy(sd);
+  return result;
+}
+let donutProbeX = 0, donutProbeZ = 0, donutProbeT = 0, donutStuckChecks = 0;
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
+  if (camAdjusted) { camera.position.copy(camDesired); camAdjusted = false; }    // undo last frame's pull-in
+  let ix = 0, iz = 0;
+  if (paused()) touchRelease();
+  if (!paused()) {
+    if (keys.has('KeyW') || keys.has('ArrowUp')) iz += 1;
+    if (keys.has('KeyS') || keys.has('ArrowDown')) iz -= 1;
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
+    if (keys.has('KeyD') || keys.has('ArrowRight')) ix += 1;
+    ix += touchMove.x; iz += touchMove.z;                                // the on-screen stick: any direction, and a gentle push walks slowly
+  }
+  fwd.subVectors(controls.target, camera.position).setY(0).normalize();
+  right.set(-fwd.z, 0, fwd.x);
+  dir.copy(fwd).multiplyScalar(iz).addScaledVector(right, ix);
+  before.copy(player.position);
+  const spd = 6 * speedMul(), dirLen = dir.length(), moveScale = Math.min(1, dirLen);          // keys always give 1; the stick gives less for a gentle push
+  if (dirLen > 0) {
+    dir.divideScalar(dirLen);
+    player.position.addScaledVector(dir, spd * dt * moveScale);
+    resolve(player.position, 0.5);
+    player.rotation.y = Math.atan2(dir.x, dir.z);
+  }
+  updatePickups(dt); updateHatPop(dt);
+  pushOutOfLlamas();                                                    // llamas are solid
+  const moved = player.position.clone().sub(before);
+  updateWalkBob(dt, moved.length());
+  if (state.floor === 1 && dir.lengthSq() > 0 && moved.length() < spd * dt * moveScale * 0.25) { state.wallTime += dt; }   // trying to walk but going nowhere: walking into a wall
+  if (state.floor === 1) {
+    state.walked += moved.length();                                     // distance walked, for Marathon
+    if (!paused()) { if (dir.lengthSq() === 0) state.idle += dt; else state.idle = 0; }   // seconds standing still, for Patience (a menu being open does not count either way)
+  }
+  camera.position.add(moved); controls.target.add(moved);
+
+  // Donut trails the player, and never gets left behind.
+  let followPoint = player.position, followOpts = { stopAt: 1.6, startAt: 2.1, maxSpeed: 6.8, minDist: 1.0, gain: 3.5 };
+  if (donutErrand) {                                                    // Donut runs to the bug's spot on the floor, then squishes it
+    const b = donutErrand.bug;
+    _errand.set(b.position.x, 0, b.position.z); followPoint = _errand; followOpts = { stopAt: 0.5, startAt: 0.7, maxSpeed: 6.8, minDist: 0.2, gain: 3.5 };
+    donutErrand.t += dt;
+    if (Math.hypot(donut.position.x - _errand.x, donut.position.z - _errand.z) < 1.3 || donutErrand.t > 3) { b.userData.escort = false; if (b.userData.isLlama) hitLlama(b, 'donut'); else doSquish(b, 'donut'); donutErrand = null; }
+  }
+  const sp = followTarget(donut, followPoint, dt, followOpts);
+  resolve(donut.position, 0.3);
+  const donutGap = Math.hypot(donut.position.x - player.position.x, donut.position.z - player.position.z);
+  donutProbeT += dt;                                                    // once a second: has she actually got anywhere?
+  if (donutProbeT >= 1) {
+    const got = Math.hypot(donut.position.x - donutProbeX, donut.position.z - donutProbeZ);
+    donutStuckChecks = (donutGap > 5 && got < 0.4) ? donutStuckChecks + 1 : 0;
+    donutProbeX = donut.position.x; donutProbeZ = donut.position.z; donutProbeT = 0;
+  }
+  if (donutGap > 12 || donutStuckChecks >= 2) {                         // never left behind, and never stuck round a corner
+    donut.position.set(player.position.x - Math.sin(player.rotation.y) * 1.5, 0, player.position.z - Math.cos(player.rotation.y) * 1.5);
+    resolve(donut.position, 0.3); donutStuckChecks = 0;
+  }
+  updateDonut(donut, dt, time, sp, player.position);
+
+  if (state.floor === 0) {
+    for (let i = sticks.length - 1; i >= 0; i--) {                      // sticks: walk over one to pick it up
+      const st = sticks[i];
+      if (Math.hypot(player.position.x - st.position.x, player.position.z - st.position.z) < 1.1) {
+        surface.remove(st); sticks.splice(i, 1); invGive('stick'); stickSound();
+      }
+    }
+    if (!reducedMotion) {
+      const p = snowGeo.attributes.position.array;
+      for (let i = 0; i < SNOW_N; i++) { p[i * 3 + 1] -= (1.2 + (i % 5) * 0.25) * dt; p[i * 3] += Math.sin(time + i) * 0.15 * dt; if (p[i * 3 + 1] < 0) p[i * 3 + 1] = 16; }
+      snowGeo.attributes.position.needsUpdate = true;
+      beamMat.opacity = 0.2 + Math.sin(time * 2) * 0.04;
+    }
+  } else {
+    for (let i = coins.length - 1; i >= 0; i--) {                       // coins (Floor 1): spinning, walk over one to take it
+      const c = coins[i]; c.rotation.y += 2 * dt;
+      if (c.userData.pop < 1) { c.userData.pop = Math.min(1, c.userData.pop + dt / 0.3); c.scale.setScalar(Math.max(0.01, c.userData.pop)); }   // a dropped coin pops up
+      if (Math.hypot(player.position.x - c.position.x, player.position.z - c.position.z) < 1) {
+        floor1.remove(c); coins.splice(i, 1); state.coins++;
+        if (!c.userData.dropped) state.coinsTaken++;                    // only the coins that were lying here at the start count for Pocket change
+        else if (c.userData.fromLlama) state.llamaCoins++;
+        updateHud(); coinSound(); checkAchievements();
+      }
+    }
+    updateDoor(dt); updateAnnexDoor(dt);
+    for (const l of llamas) updateLlama(l, dt, time);
+    updatePiles(dt); collectConfetti();
+    if (!state.enteredAnnex && annexDoor.done && player.position.z < -13.5 && player.position.x > -4.5) state.enteredAnnex = true;
+    if (!state.places.has('store') && player.position.x > 0.5 && player.position.x < 8 && player.position.z < -14 && player.position.z > -20) visitPlace('store');
+    for (const b of bugs) updateBug(b, dt, time);
+    if (!state.sideVisited && player.position.x > 18.6 && player.position.z > -2 && player.position.z < 6) state.sideVisited = true;   // the dead-end side room
+    _lookAt.set(player.position.x, 1.2, player.position.z);
+    updateMordecai(mordecai, dt, time, Math.hypot(player.position.x - mordecai.position.x, player.position.z - mordecai.position.z) < 9 ? _lookAt : null);
+    if (!state.places.has('door') && Math.hypot(player.position.x + 10, player.position.z + 10) < 3.2) visitPlace('door');   // reaching the door counts, locked or not
+    if (!state.places.has('safe') && player.position.x < -10.8 && player.position.z < -3) visitPlace('safe');
+  }
+
+  if (!paused()) applyKeyboardCamera(dt);
+  controls.update();
+  if (state.floor === 1) {                                              // count how far round the player has turned the camera
+    const az = controls.getAzimuthalAngle();
+    if (lastAz !== null) { let d = az - lastAz; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; camTurned += Math.abs(d); state.camTurns = camTurned / (2 * Math.PI); }
+    lastAz = az;
+    checkAchievements();
+  }
+  if (state.floor === 1) keepCameraInside();
+  avatarPivot.visible = !(state.floor === 1 && camAdjusted && camera.position.distanceTo(controls.target) < 1.1);   // if the camera is squeezed right up to the player, do not look through their body
+  camRendered.copy(camera.position);
+  const near = paused() ? null : nearest();
+  $('prompt').hidden = !near;
+  if (near) $('promptText').textContent = near.prompt;
+  touchAct.hidden = !(touchMode && near);
+  if (near && touchMode && touchAct.textContent !== near.prompt) touchAct.textContent = near.prompt;
+  renderer.render(scene, camera);
+  if (!firstFrameAt) { firstFrameAt = performance.now(); setTimeout(() => { if (state.floor === 0) announce('Announcement', 'Warning: terms and conditions', TERMS, { sticky: true }); }, 1000); }
+  requestAnimationFrame(frame);
+}
+frame();
+
+addEventListener('resize', syncViewport);
+syncViewport();
+
+window.crawler = { state, paused, player, donut, camera, controls, coins, sticks, surface, floor1, propCounts, interactables: () => interactables, active, achieved, stairs, firstFrameAt: () => firstFrameAt, achievedTitles, mordecai, greatDoor, unlockDoor, floor1Colliders, levelSolids, ROOMS, camRendered, cameraDesired: camDesired, cameraTest, DOOR_LINES, doorLine, mordecaiVoice, touch: { mode: () => touchMode, move: touchMove, settings, setMode: setTouchMode, audioState: () => audio && audio.state }, renderer, avatarPivot, capsule, walk, getAvatar: () => avatar, isModelLoaded: () => modelLoaded, bugs, TRACKS, wallSpans, openBugMenu, doSquish, ACHIEVEMENTS, checkAchievements, spawnBugs, bugOnFloor, getErrand: () => donutErrand, llamas, piles, LLAMA, annexDoor, openAnnexDoor, hitLlama, burstLlama, dropCoin, openStore, cartAdd, cartRemove, emptyCart, buyCart, STORE_ITEMS, ITEMS, invHave, invGive, invTake, invRoom, openBag, addPickup, pickups, wearHat, donutHats, openLlamaMenu, speedMul, spawnLlamas, storeSpot, LLAMA_ZONES };
+</script>
+</body>
+</html>
