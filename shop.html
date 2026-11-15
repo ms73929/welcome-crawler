@@ -7,6 +7,7 @@
 <meta name="description" content="A dingy, overpriced hat shop from Welcome, Crawler, with every animation explained in MOTION-LOG.md.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="styles.css">
+<noscript><style>.tryon, #storePause, #storeDesc, #cartHead, #cartLines, #cartTotal, #storeNote, #storeBuy, #storeEmpty { display: none; }</style></noscript>   <!-- without JavaScript these controls would do nothing, so they are not shown -->
 </head>
 <body class="shop-page">
 <!-- The same store as the game's window, as a page of its own. shop.js and item-art.js are shared with the game (index.html).
@@ -22,9 +23,9 @@
   </header>
   <p id="demoNote">Demo page: you start with 40 coins, and anything you buy stays on this page. In the game, you earn coins from bugs and piñata llamas.</p>
   <p id="storeDesc">Coins: <span id="storeCoins">0</span>. Add items to the cart, then press Buy.</p>
-  <div class="tryon" aria-hidden="true">
+  <div class="tryon">
     <div id="tryonArt" class="tryon-art"></div>
-    <span id="tryonName" class="tryon-text"></span>
+    <span id="tryonName" class="tryon-text" aria-hidden="true"></span>
     <span class="cartpill"><span id="cartBadge" class="badge">0</span><span>in cart</span></span>
   </div>
   <div id="storeItems"></div>
@@ -38,7 +39,7 @@
     <li><strong>Cowboy hat for Donut</strong>, 8 coins. A tan cowboy hat with a wide curled brim, sized for a cat.</li>
     <li><strong>Pickle hat for Donut</strong>, 6 coins. A hat shaped like a green pickle, covered in little bumps, sized for a cat.</li>
     <li><strong>Tall striped hat for Donut</strong>, 9 coins. A very tall hat with red and white stripes, sized for a cat. It sticks well above her head.</li>
-    <li><strong>Confetti grenade case</strong>, 5 coins. An empty case. Walk through fresh llama confetti to fill it. A full case is a grenade.</li>
+    <li><strong>Confetti grenade case</strong>, 5 coins. An empty case. It fills by itself once you have 10 pieces of confetti from llamas. A full case is a grenade: 10 damage.</li>
     <li><strong>Confetti-proof nail file</strong>, 5 coins. Confetti no longer slows you down.</li>
     </ul>
   </noscript>
@@ -49,6 +50,7 @@
   <p id="storeNote" role="status"></p>
   <a class="linkbtn" id="storeLeave" href="index.html">Back to the dungeon</a>
 </main>
+<script src="motion-xray.js"></script>   <!-- the course's Motion X-ray: press M, or use the button in the corner -->
 <script type="module">
 import { createShop } from './shop.js';
 const $ = id => document.getElementById(id);
