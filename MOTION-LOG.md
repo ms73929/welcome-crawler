@@ -1,8 +1,8 @@
 # Motion log
 
-**Student:** Martina Svyantek
-**Shop name:** First Chance for Loose Change
-**Live site:** https://  <!-- add your GitHub Pages link to shop.html here -->
+**Student: Martina Svyantek
+**Shop name: First Chance for Loose Change
+**Live site: https://curious-croquembouche-3f3f07.netlify.app/shop.html
 
 ## Motion sentences
 
@@ -115,14 +115,14 @@ Bonus, a fourth curve: the flip curve, cubic-bezier(0.34, 1.2, 0.64, 1), oversho
 
 Pick one animation and describe what the Motion X-ray or the Chrome Animations panel showed you that you couldn't see at normal speed.
 
-<!-- YOURS TO WRITE: one specific thing you saw. Numbers the X-ray shows for this page, so you can check them: the five headline words start 110ms apart and the last one ends at 890ms; the cart flight lasts 520ms and the badge number only changes when it ends; the sign (5.2s) and the llama (6.7s) loops are different lengths, so they never line up. -->
+-- This is really tricky to catch, even with the slow down to 10% - the motion xray catches the hat switching behvior – the CSS transition – opacity – on g.tryon.hat – this is what switches between the hats on Donut’s head in the shop as a preview! It is super short-lived – 350ms – as this is a nearly instantaneous switch in the shop.
 
 ## Checks
 
-- [ ] (R8) Reduced motion emulated in DevTools: what still moves, and what stops? **Result to confirm in DevTools:** nothing loops (the sign, llama and bulb stay still), the word-drop and card reveals are skipped so everything is simply there, the flip is instant, the cart flight is skipped (the badge updates at once), and the Pause button is hidden because there is nothing to pause. The hover lift on cards and buttons also stops.
-- [ ] (R8) Pause button stops every infinite loop, and works from the keyboard **Result to confirm:** Pause freezes the sign, llama and bulb, and turns off the rest of the store's motion too: card lift, reveal, flip, hat crossfade and the cart flight all happen instantly instead of moving (nothing is left half-way or hidden). It is a real button, so Enter and Space both pause and resume it.
-- [ ] (R8) Every :hover effect also happens on :focus-visible **Result to confirm:** each hover rule has a matching `:focus-visible` rule; cards lift when anything inside them has keyboard focus.
-- [ ] (R8) Nothing flashes more than 3 times per second **Result to confirm:** the fastest change is the bulb, one dip to 75% opacity every 4.3s.
-- [ ] (R9) Paint flashing checked: my animations use transform and opacity (DevTools, Rendering, Paint flashing; hover, scroll and press while watching)
-- [ ] (R9) No `transition: all` anywhere **Result to confirm:** every transition names its properties (transform, translate, opacity); no `background-color` or layout properties are animated.
-- [ ] (R4) With JavaScript disabled, every card is still visible **Result to confirm:** with JavaScript off, a plain list of every item with its price appears instead of the cards, and the controls that need JavaScript are hidden.
+- [the flight has stopped!] (R8) Reduced motion emulated in DevTools: what still moves, and what stops? there are no loops that function while the pause is on! nothing loops (the sign, llama and bulb stay still), the word-drop and card reveals are skipped so everything is simply there, the flip is instant, the cart flight is skipped (the badge updates at once), and the Pause button is hidden because there is nothing to pause. The hover lift on cards and buttons also stops.
+- [x ] (R8) Pause button stops every infinite loop, and works from the keyboard; correct - Pause freezes the sign, llama and bulb, and turns off the rest of the store's motion too: card lift, reveal, flip, hat crossfade and the cart flight all happen instantly instead of moving (nothing is left half-way or hidden). It is a real button, so Enter and Space both pause and resume it.
+- [x ] (R8) Every :hover effect also happens on :focus-visible **Result to confirm:** each hover rule has a matching `:focus-visible` rule; cards lift when anything inside them has keyboard focus.
+- [x ] (R8) Nothing flashes more than 3 times per second; I would die if it did. the fastest change is the bulb, one dip to 75% opacity every 4.3s.
+- [ x] (R9) Paint flashing checked: my animations use transform and opacity (DevTools, Rendering, Paint flashing; hover, scroll and press while watching)
+- [ x] (R9) No `transition: all` anywhere **Result to confirm:** every transition names its properties (transform, translate, opacity); no `background-color` or layout properties are animated.
+- [ oh hell no those cards don't show without js!] (R4) With JavaScript disabled, every card is still visible - NOPE! With JavaScript off, a plain list of every item with its price appears instead of the cards, and the controls that need JavaScript are hidden. The page also proclaims it NEEDS JS to function. 
