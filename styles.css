@@ -175,6 +175,10 @@ body.touch #toasts { top:var(--hud-bottom, 96px); max-height:calc(100vh - var(--
   @keyframes sway-llama { from { transform:rotate(-2.5deg); } to { transform:rotate(3.5deg); } }
   @keyframes bulb-dim { 0%, 62%, 100% { opacity:1; } 78% { opacity:0.75; } }
   .storefront.paused * { animation-play-state: paused; }
+  /* The Pause button turns off all motion in the store, not just the loops: changes still happen, but instantly (like reduced motion) */
+  #storeDialog.motion-paused *, #storeDialog.motion-paused *::before, #storeDialog.motion-paused *::after { transition: none !important; }
+  #storeDialog.motion-paused #storeTitle .w { opacity:1; transform:none; animation:none; }
+  #storeDialog.motion-paused #storeTitle .w.crooked { transform:rotate(2deg); }
 
   /* R4 scroll reveal: a card fades up as it scrolls into view and its price follows 150 ms later. Cards are hidden only when the
      script is running (.js-motion), and the script shows them all at once if it cannot watch the scrolling. */

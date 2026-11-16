@@ -7,7 +7,7 @@
    The shop's motion is planned in the six motion sentences (R1 to R6). The styles and timings are in styles.css (search for "motion");
    what needs the script is here: the headline words (R2), the cards that reveal as they scroll (R4), the try-on picture that follows the
    scroll (R5), and the add-to-cart flight with its badge bump (R6). */
-import { artFor, storefrontSvg, donutPreviewSvg } from './item-art.js';
+import { artFor, storefrontSvg, donutPreviewSvg, STOREFRONT_ALT, donutAlt } from './item-art.js';
 
 export function createShop({ state, $, storeDlg, invRoom, invGive, coinSound = () => {}, updateHud = () => {}, updatePause = () => {}, checkAchievements = () => {}, leaveHref = 'index.html' }) {
   /* Two homes, one shop: in the game the store is a <dialog> (a window that scrolls inside itself); on shop.html it is a plain <main>
@@ -21,7 +21,7 @@ export function createShop({ state, $, storeDlg, invRoom, invGive, coinSound = (
     { id: 'hatCowboy', name: 'Cowboy hat for Donut', price: 8, text: 'A tan cowboy hat with a wide curled brim, sized for a cat.', full: 'You already have this hat.' },
     { id: 'hatPickle', name: 'Pickle hat for Donut', price: 6, text: 'A hat shaped like a green pickle, covered in little bumps, sized for a cat.', full: 'You already have this hat.' },
     { id: 'hatTall', name: 'Tall striped hat for Donut', price: 9, text: 'A very tall hat with red and white stripes, sized for a cat. It sticks well above her head.', full: 'You already have this hat.' },
-    { id: 'caseEmpty', name: 'Confetti grenade case', price: 5, text: 'An empty case. Walk through fresh llama confetti to fill it. A full case is a grenade.', full: 'You cannot carry any more cases.' },
+    { id: 'caseEmpty', name: 'Confetti grenade case', price: 5, text: 'An empty case. It fills by itself once you have 10 pieces of confetti from llamas. A full case is a grenade: 10 damage.', full: 'You cannot carry any more cases.' },
     { id: 'file', name: 'Confetti-proof nail file', price: 5, text: 'Confetti no longer slows you down.', full: 'You already have it.' }
   ];
   for (const it of STORE_ITEMS) if (!(it.id in state.cart)) state.cart[it.id] = 0;
@@ -38,7 +38,9 @@ export function createShop({ state, $, storeDlg, invRoom, invGive, coinSound = (
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   const nameOf = id => (STORE_ITEMS.find(i => i.id === id) || {}).name || '';
   $('storeArt').innerHTML = storefrontSvg();                              // R3: the storefront; its sign, llama and bulb are animated by styles.css
+  $('storeArt').setAttribute('role', 'img'); $('storeArt').setAttribute('aria-label', STOREFRONT_ALT);   // its text alternative (the drawing inside is hidden from assistive technology)
   $('tryonArt').innerHTML = donutPreviewSvg();
+  $('tryonArt').setAttribute('role', 'img');                              // the strip's picture: its description follows the hat she is wearing (see setTryOn)
   const title = $('storeTitle'), titleWords = title.textContent.trim().split(/\s+/);
   title.textContent = '';
   titleWords.forEach((w, i) => {                                          // R2: each word is its own span, so each can arrive on its own; real spaces stay between them
@@ -48,12 +50,14 @@ export function createShop({ state, $, storeDlg, invRoom, invGive, coinSound = (
   function playHero() { storeDlg.classList.remove('play'); void storeDlg.offsetWidth; storeDlg.classList.add('play'); }   // restart the headline every time the store opens
   const pause = $('storePause');
   pause.addEventListener('click', () => {                                 // the storefront's loops run for more than five seconds, so they can be paused
-    const on = $('storeArt').classList.toggle('paused'); pause.textContent = on ? 'Play animations' : 'Pause animations';
+    const on = storeDlg.classList.toggle('motion-paused'); $('storeArt').classList.toggle('paused', on); pause.textContent = on ? 'Play animations' : 'Pause animations';
+    // Paused: the storefront's loops freeze, and everything else (card lift, reveal, flip, hat crossfade, cart flight) happens instantly instead of moving. Nothing is ever left half-way or hidden.
   });
 
   function setTryOn(id) {                                                 // R5: the hat Donut is wearing in the strip follows the card in the middle of the window
     for (const g of $('tryonArt').querySelectorAll('.tryon-hat')) g.classList.toggle('on', g.dataset.hat === id);
     $('tryonName').textContent = id ? `Trying on: ${nameOf(id)}` : 'Scroll to try hats on Donut.';
+    $('tryonArt').setAttribute('aria-label', donutAlt(id ? nameOf(id) : ''));      // the picture's description changes with the hat; the caption beside it repeats it, so it is hidden from screen readers
   }
   let revealIO = null, tryIO = null; const inBand = new Set();
   function watchCards() {
@@ -68,6 +72,7 @@ export function createShop({ state, $, storeDlg, invRoom, invGive, coinSound = (
       inBand.forEach(c => { const r = c.getBoundingClientRect(), gap = Math.abs(r.left + r.width / 2 - (mid.left + mid.width / 2)); if (gap < bestGap) { best = c; bestGap = gap; } });
       if (best) setTryOn(best.dataset.hat);
     }, { root: scroller, rootMargin: '-50% 0px -45% 0px' });
+    window.motionXray && motionXray.zone('-50% 0px -45% 0px');          // the course's Motion X-ray can draw this trigger band (its "Show trigger zone" button)
     all.forEach((c, i) => {
       c.card.style.setProperty('--d', `${(i % 3) * 90}ms`);               // R4: cards in the same row arrive 90 ms apart
       if (revealIO) revealIO.observe(c.card); if (tryIO && c.card.dataset.hat) tryIO.observe(c.card);
@@ -78,7 +83,7 @@ export function createShop({ state, $, storeDlg, invRoom, invGive, coinSound = (
   let flying = 0;                                                         // flights in the air: the badge's number waits for them to land
   function flyToCart(fromEl) {                                            // R6: a copy of the item's picture flies to the cart badge; when it lands, the badge bumps
     const badge = $('cartBadge');
-    if (!fromEl || reduced() || !badge.getClientRects().length) return;
+    if (!fromEl || reduced() || storeDlg.classList.contains('motion-paused') || !badge.getClientRects().length) return;
     flying++;
     const a = fromEl.getBoundingClientRect(), b = badge.getBoundingClientRect(), ghost = fromEl.cloneNode(true);
     ghost.removeAttribute('role'); ghost.removeAttribute('aria-label'); ghost.setAttribute('aria-hidden', 'true'); ghost.classList.add('fly-copy');
