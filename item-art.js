@@ -100,6 +100,8 @@ export function artFor(id) {                                  // a picture eleme
 
 /* ---- The storefront drawn above the store window (decorative: the heading already says what the shop is).
    Three parts carry classes that styles.css animates: .sign and .llama sway from where they hang, .bulb dims now and then. ---- */
+export const STOREFRONT_ALT = 'Shop front of First Chance for Loose Change: a purple fringed awning, a hanging wooden sign reading "First chance for loose change," a pink piñata llama dangling on the left, and a bare light bulb on the right. The three sway or flicker gently.';
+export const donutAlt = hatName => hatName ? `Donut, an orange cat, wearing the ${hatName.replace(/ for Donut$/, '').toLowerCase()}.` : 'Donut, an orange cat, wearing no hat.';
 export function storefrontSvg() {
   const cols = ['#b9515a', '#d1a845', '#4b9a93'], hs = [34, 22, 40, 28, 44, 20, 36, 30, 42, 24, 38, 26, 46, 32, 28, 40];
   const fringe = hs.map((h, i) => `<path d="M${104 + i * 47} 170h30l-3 ${h}l-8 -6l-6 8l-7 -7l-6 5z" fill="${cols[i % 3]}" ${S}/>`).join('');

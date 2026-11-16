@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Welcome, Crawler</title>
 <!--
-  WELCOME, CRAWLER · ITE 270 · version 19 (styles are in styles.css and the store's mechanics are in shop.js; a bag tracks what the crawler carries, opened with B or the Bag button; the store uses a cart and one Buy at the end; leave Mordecai and a new doorway opens onto new halls: pixel block and dungeon-worn piñata llamas, confetti, coin drops, a store; touch controls for phones and tablets; Carl; Mordecai is solid)
+  WELCOME, CRAWLER · ITE 270 · version 20 (styles are in styles.css and the store's mechanics are in shop.js; a bag tracks what the crawler carries, opened with B or the Bag button; the store uses a cart and one Buy at the end; leave Mordecai and a new doorway opens onto new halls: pixel block and dungeon-worn piñata llamas, confetti, coin drops, a store; touch controls for phones and tablets; Carl; Mordecai is solid)
   ------------------------------------------------------
   Open this file in a browser (double-click it). Keep Paper_Kite_Turn.mp3 in the same folder for the music button.
   Parts of the file: sounds, music, announcements, the surface (street, props, the stairs down), Floor 1 (the hallways),
@@ -15,7 +15,7 @@
 </head>
 <body>
 <div id="hud">
-  <div class="card"><b>Welcome, Crawler</b><br><span id="floorLabel">Surface</span><br><span id="places">Places: 0 / 5</span><br><span id="sticks" aria-live="polite">Sticks: 0</span><span id="coinsWrap" hidden><br><span id="coins" aria-live="polite">Coins: 0</span><br><span id="bugCount">Bugs squished: 0</span></span></div>
+  <div class="card"><b>Welcome, Crawler</b><br><span id="floorLabel">Surface</span><br><span id="places">Places: 0 / 5</span><span id="sticksWrap"><br><span id="sticks" aria-live="polite">Sticks: 0</span></span><span id="confettiWrap" hidden><br><span id="confetti" aria-live="polite">Confetti: 0</span></span><span id="coinsWrap" hidden><br><span id="coins" aria-live="polite">Coins: 0</span><br><span id="bugCount">Bugs squished: 0</span></span></div>
   <div class="card"><p id="rotateTip" hidden role="status">Tip: turn your device sideways for a bigger view. The game works upright too. <button id="tipClose" type="button">Dismiss</button></p><span id="keyhint">WASD or arrows move · E interact · B bag · J L turn the camera · I K tilt it · C behind me</span> <button id="mouselook" type="button" aria-pressed="false">Drag to look</button> <button id="tcDpad" type="button" class="touch-only" aria-pressed="false">D-pad</button> <button id="tcSwap" type="button" class="touch-only" aria-pressed="false">Swap sides</button> <button id="tcRaise" type="button" class="touch-only" aria-pressed="false">Raise controls</button> <button id="bagBtn" type="button" aria-keyshortcuts="B">Bag</button> <button id="music">Music on</button></div>
 </div>
 <div id="loading" class="card" role="status" hidden>Loading Carl…</div>
@@ -53,6 +53,7 @@
   <button class="opt" data-act="stomp"><strong>Stomp <span class="kbhint">(1)</span></strong><span id="stompInfo"></span></button>
   <button class="opt" data-act="smack"><strong>Smack <span class="kbhint">(2)</span></strong><span id="smackInfo">With your hand. Works on the floor and the walls.</span></button>
   <button class="opt" data-act="throw"><strong>Throw a coin <span class="kbhint">(3)</span></strong><span id="throwInfo"></span></button>
+  <button class="opt" data-act="stick" hidden><strong>Throw a stick <span class="kbhint">(6)</span></strong><span id="stickInfo"></span></button>
   <button class="opt" data-act="donut"><strong>Ask Donut <span class="kbhint">(4)</span></strong><span id="donutInfo">She runs over and squishes it for you.</span></button>
   <button class="opt" data-act="grenade" hidden><strong>Throw a confetti grenade <span class="kbhint">(5)</span></strong><span id="grenadeInfo"></span></button>
   <p id="bugNote" role="status"></p>
@@ -65,8 +66,8 @@
   <p id="finishSpeech"></p>
   <p id="finishStats"></p>
   <div class="row">
-    <button id="keep">Leave</button>
-    <button id="again" class="ghost">Play again</button>
+    <button id="keep">Trudge on</button>
+    <button id="again" class="ghost">Restart</button>
   </div>
 </dialog>
 
@@ -99,9 +100,9 @@
     </div>
   </header>
   <p id="storeDesc">Coins: <span id="storeCoins">0</span>. Add items to the cart, then press Buy.</p>
-  <div class="tryon" aria-hidden="true">
+  <div class="tryon">
     <div id="tryonArt" class="tryon-art"></div>
-    <span id="tryonName" class="tryon-text"></span>
+    <span id="tryonName" class="tryon-text" aria-hidden="true"></span>
     <span class="cartpill"><span id="cartBadge" class="badge">0</span><span>in cart</span></span>
   </div>
   <div id="storeItems"></div>
@@ -135,10 +136,12 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
    the stick tock, the squish, and the announcement (three game-show dings, heard on Floor 1 only). */
 let audio;
 function audioContext() {
-  audio = audio || new AudioContext();
-  if (audio.state === 'suspended') audio.resume();
+  audio = audio || new AudioContext({ latencyHint: 'interactive' });
+  if (audio.state !== 'running') audio.resume();
   return audio;
 }
+// The audio engine starts on the player's first key press, click or touch, so the first coin or squish is not late waiting for it to wake up.
+for (const ev of ['keydown', 'pointerdown', 'touchstart']) addEventListener(ev, () => audioContext(), { once: true, capture: true });
 function tone(ctx, out, { type = 'sine', freq, start, dur, gain, attack = 0.005 }) {
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type;
@@ -150,18 +153,18 @@ function tone(ctx, out, { type = 'sine', freq, start, dur, gain, attack = 0.005 
   o.start(start); o.stop(start + dur + 0.02);
 }
 function visitSound() {                                   // soft bell
-  const ctx = audioContext(), t = ctx.currentTime + 0.02, base = 659.25;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005, base = 659.25;
   [[1, 0.166, 1.9], [2.76, 0.077, 1.2], [5.4, 0.045, 0.6], [8.93, 0.026, 0.3]].forEach(([ratio, gain, dur]) =>
     tone(ctx, ctx.destination, { freq: base * ratio, start: t, dur, gain, attack: 0.003 }));
 }
 function coinSound() {                                    // classic coin
-  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005;
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4500; lp.connect(ctx.destination);
   tone(ctx, lp, { type: 'square', freq: 987.77,  start: t,        dur: 0.09, gain: 0.19, attack: 0.002 });
   tone(ctx, lp, { type: 'square', freq: 1318.51, start: t + 0.08, dur: 0.5,  gain: 0.19, attack: 0.002 });
 }
 function announcementSound() {                            // three game-show dings
-  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005;
   for (let i = 0; i < 3; i++) {
     tone(ctx, ctx.destination, { freq: 1318.51, start: t + i * 0.17, dur: 0.9, gain: 0.16,   attack: 0.003 });
     tone(ctx, ctx.destination, { freq: 2637.02, start: t + i * 0.17, dur: 0.5, gain: 0.0704, attack: 0.003 });
@@ -182,35 +185,35 @@ function noise(ctx, out, { freq, endFreq, q = 1, start, dur, gain }) {          
   src.connect(f); f.connect(g); g.connect(out); src.start(start); src.stop(start + dur + 0.05);
 }
 function squishSound() {                                  // squish A: a wet squelch
-  const ctx = audioContext(), t = ctx.currentTime + 0.02, out = ctx.destination;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005, out = ctx.destination;
   noise(ctx, out, { freq: 900, endFreq: 180, q: 2, start: t,        dur: 0.28, gain: 0.5 });
   glide(ctx, out, { from: 140, to: 55,           start: t,        dur: 0.22, gain: 0.35 });
   noise(ctx, out, { freq: 500, endFreq: 250, q: 3, start: t + 0.12, dur: 0.12, gain: 0.25 });
 }
 function stickSound() {                                   // a dry wooden tock
-  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005;
   tone(ctx, ctx.destination, { freq: 196, start: t, dur: 0.14, gain: 0.3,  attack: 0.002 });
   tone(ctx, ctx.destination, { type: 'triangle', freq: 392, start: t, dur: 0.06, gain: 0.12, attack: 0.002 });
 }
 
 function thumpSound() {                                   // a llama is hit: a dull thump
-  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005;
   glide(ctx, ctx.destination, { from: 190, to: 60, start: t, dur: 0.16, gain: 0.4 });
   noise(ctx, ctx.destination, { freq: 1200, endFreq: 300, q: 1, start: t, dur: 0.08, gain: 0.25 });
 }
 function burstSound() {                                   // a llama bursts: a papery pop and a bright little run of notes
-  const ctx = audioContext(), t = ctx.currentTime + 0.02, out = ctx.destination;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005, out = ctx.destination;
   noise(ctx, out, { freq: 3200, endFreq: 900, q: 0.8, start: t, dur: 0.35, gain: 0.45 });
   glide(ctx, out, { from: 160, to: 55, start: t, dur: 0.2, gain: 0.35 });
   [784, 988, 1175, 1568].forEach((f, i) => tone(ctx, out, { type: 'triangle', freq: f, start: t + 0.05 + i * 0.045, dur: 0.3, gain: 0.09 }));
 }
 function rumbleSound() {                                  // the new doorway: stone sliding
-  const ctx = audioContext(), t = ctx.currentTime + 0.02, out = ctx.destination;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005, out = ctx.destination;
   noise(ctx, out, { freq: 160, endFreq: 70, q: 1.2, start: t, dur: 2.0, gain: 0.5 });
   glide(ctx, out, { from: 75, to: 38, start: t, dur: 2.0, gain: 0.3 });
 }
 function fillSound() {                                    // a grenade case fills with confetti
-  const ctx = audioContext(), t = ctx.currentTime + 0.02;
+  const ctx = audioContext(), t = ctx.currentTime + 0.005;
   [523.25, 659.25, 783.99].forEach((f, i) => tone(ctx, ctx.destination, { type: 'triangle', freq: f, start: t + i * 0.07, dur: 0.25, gain: 0.12 }));
 }
 
@@ -687,7 +690,7 @@ const storeSpot = { name: 'Store', x: 5.0, z: -17, radius: 3.2, prompt: 'Browse 
 })();
 
 // --- Coins start here, on Floor 1: none on the surface ---
-const coinGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 24).rotateX(Math.PI / 2);
+const coinGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 24).rotateX(Math.PI / 2);   // half the size it was, to suit the scale of the halls
 const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd34d, emissive: 0x553d00, metalness: 0.3, roughness: 0.35 });
 const coins = [[-4, 12], [4, 4], [12, 2], [22, 2], [-2, -10]].map(([x, z]) => { const c = new THREE.Mesh(coinGeo, coinMat); c.position.set(x, 1, z); c.castShadow = true; floor1.add(c); return c; });
 
@@ -776,7 +779,7 @@ function makeBug(colorKey, size = 0.6) {
    Six bugs crawl over the floors and walls of the four hallways. A bug lives on a "track": one straight hallway whose
    left wall, floor and right wall are unrolled into a flat strip (s runs across it, u runs along the hallway). Walls only
    count where they really exist (not across a doorway or a junction). Squish one and it comes back somewhere else. */
-const BUG_SIZE = 0.9, BUG_COUNT = 6, BUG_RESPAWN = 8;                    // BUG_SIZE is the body length in world units
+const BUG_SIZE = 0.675, BUG_COUNT = 6, BUG_RESPAWN = 8;                    // BUG_SIZE is the body length in world units
 const TRACKS = [                                                          // axis: the way the hallway runs; c0 to c1: its width; wallA and wallB name the two long walls
   { name: 'hall A', axis: 'x', u0: -12, u1: 6,  c0: 10,  c1: 14, wallA: 'pz|10',  wallB: 'nz|14' },
   { name: 'hall B', axis: 'z', u0: -12, u1: 14, c0: 2,   c1: 6,  wallA: 'px|2',   wallB: 'nx|6'  },
@@ -1432,7 +1435,7 @@ addEventListener('keyup', e => keys.delete(e.code));
 const state = { floor: 0, busy: false, places: new Set(), inv: { stick: 0, water: 0, caseEmpty: 0, caseFull: 0, hatParty: 0, hatPirate: 0, hatUmbrella: 0, hatCap: 0, hatCowboy: 0, hatPickle: 0, hatTall: 0, file: 0 }, hat: null, coins: 0, coinsTaken: 0, squished: 0, squish: { feet: 0, hand: 0, thrown: 0, donut: 0 },
                 doorTries: 0, wallTime: 0, camTurns: 0, sideVisited: false,
                 met: false, llamas: { pixel: 0, worn: 0 }, wornNoCoin: 0, llamaCoins: 0, llamaEscapes: 0, enteredAnnex: false,          // the new halls: met Mordecai, llamas burst, and so on
-                cart: {}, bought: 0, windowShopped: false, confettiHint: false,
+                cart: {}, bought: 0, windowShopped: false, confettiHint: false, confetti: 0, sticksThrown: 0,
                 walked: 0, idle: 0, lastColors: [] };            // distance walked on Floor 1, seconds standing still, and the colors of the last three bugs squished
 // The stairs are the only thing in the whole world you can walk up to and use.
 const stairs = { name: 'Stairs', x: 0, z: -10, radius: 3, prompt: 'Enter the dungeon', action: askDescend };
@@ -1461,7 +1464,7 @@ function visitPlace(id) {
   state.places.add(id); visitSound();
   $('places').textContent = `Places: ${state.places.size} / ${PLACE_TOTAL}`;
 }
-function updateHud() { $('sticks').textContent = `Sticks: ${invHave('stick')}`; $('coins').textContent = `Coins: ${state.coins}`; $('bugCount').textContent = `Bugs squished: ${state.squished}`; updateBagButton(); }
+function updateHud() { $('sticks').textContent = `Sticks: ${invHave('stick')}`; $('sticksWrap').hidden = state.met; $('confettiWrap').hidden = !state.met; $('confetti').textContent = `Confetti: ${state.confetti}`; $('coins').textContent = `Coins: ${state.coins}`; $('bugCount').textContent = `Bugs squished: ${state.squished}`; updateBagButton(); }
 
 const confirmDlg = $('confirm'), finishDlg = $('finish'), storeDlg = $('storeDialog'), bagDlg = $('bagDialog');
 const bugDlg = $('bugDialog');
@@ -1541,15 +1544,17 @@ function chooseBugAction(act) {
   if (act === 'grenade' && invHave('caseFull') <= 0) { $('bugNote').textContent = 'You have no full grenade case.'; return; }
   if (act === 'stomp' && !bugOnFloor(bug)) { $('bugNote').textContent = 'You can only stomp a bug on the floor. Try another way.'; return; }
   if (act === 'throw' && state.coins <= 0) { $('bugNote').textContent = 'You have no coins left to throw.'; return; }
+  if (act === 'stick' && invHave('stick') <= 0) { $('bugNote').textContent = 'You have no sticks left to throw.'; return; }
   bugDlg.close();
   if (act === 'stomp') doSquish(bug, 'feet');
   else if (act === 'smack') doSquish(bug, 'hand');
   else if (act === 'throw') { state.coins--; doSquish(bug, 'thrown'); }
+  else if (act === 'stick') { invTake('stick'); state.sticksThrown++; stickSound(); doSquish(bug, 'stick'); }
   else if (act === 'grenade') { invTake('caseFull'); invGive('caseEmpty'); doSquish(bug, 'grenade'); }
   else if (act === 'donut') { bug.userData.escort = true; donutErrand = { bug, t: 0 }; }   // Donut runs over; the bug waits for her
 }
 bugDlg.addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b) chooseBugAction(b.dataset.act); });
-bugDlg.addEventListener('keydown', e => { const act = { Digit1: 'stomp', Digit2: 'smack', Digit3: 'throw', Digit4: 'donut', Digit5: 'grenade' }[e.code]; if (act) chooseBugAction(act); });
+bugDlg.addEventListener('keydown', e => { const act = { Digit1: 'stomp', Digit2: 'smack', Digit3: 'throw', Digit4: 'donut', Digit5: 'grenade', Digit6: 'stick' }[e.code]; if (act) chooseBugAction(act); });
 
 /* ============ The bag ============
    Everything the crawler carries lives in state.inv, one number per kind of item, and ITEMS says what each kind is. To add a new
@@ -1564,8 +1569,8 @@ bugDlg.addEventListener('keydown', e => { const act = { Digit1: 'stomp', Digit2:
 const ITEMS = {
   stick:     { name: 'Stick', text: 'A stick you picked up on the surface.', max: 99, look: () => new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1, 6), stdMat(0x8a6a44, 0.9)) },
   water:     { name: 'Water bottle', text: 'Clean drinking water in a sealed bottle.', max: 5, look: () => new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.3, 10), stdMat(0x5aa9e6, 0.35)) },
-  caseEmpty: { name: 'Empty grenade case', text: 'Walk through fresh llama confetti to fill it.', max: 3, shared: 'case' },
-  caseFull:  { name: 'Confetti grenade', text: 'A case full of confetti. Throw it from the fight menu: two hits on a llama, or it splats a bug.', max: 3, shared: 'case' },
+  caseEmpty: { name: 'Empty grenade case', text: 'Fills by itself once you have 10 pieces of confetti from llamas.', max: 3, shared: 'case' },
+  caseFull:  { name: 'Confetti grenade', text: 'A case with 10 pieces of confetti inside. Throw it from the fight menu: 10 damage to a llama, or it splats a bug.', max: 3, shared: 'case' },
   hatParty:  { name: 'Party hat for Donut', short: 'party hat', text: 'A small purple party hat for Donut.', max: 1, wear: true, onGive: () => wearFirstHat('hatParty') },
   hatPirate: { name: 'Pirate hat for Donut', short: 'pirate hat', text: 'A black pirate hat with gold trim and a skull and crossbones, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatPirate') },
   hatUmbrella: { name: 'Umbrella hat for Donut', short: 'umbrella hat', text: 'A hat with a small red and yellow umbrella on top, sized for a cat.', max: 1, wear: true, onGive: () => wearFirstHat('hatUmbrella') },
@@ -1752,10 +1757,10 @@ function updatePickups(dt) {
    sees one (slower than the player walks). It never attacks. It takes one hit from Stomp, Smack, a thrown coin or Donut, and two
    from a confetti grenade. When its hits run out it bursts into confetti: pixel squares that fall, lie on the floor and then fade
    the way a bug's splat fades. Fresh confetti slows the player down (the nail file from the store stops that) and an empty
-   grenade case fills up when the player walks through it. A llama sometimes drops coins as well. */
+   grenade case fills from the confetti counter (10 pieces). A llama sometimes drops coins as well. */
 const LLAMA = {
-  pixel: { label: 'pixel block', hp: 3, height: 1.2, speed: 1.5, radius: 0.55, respawn: 45, confetti: 130, spread: 1.7, drop: { chance: 0.25, min: 1, max: 1 } },
-  worn:  { label: 'dungeon-worn', hp: 8, height: 1.6, speed: 1.15, radius: 0.7, respawn: 90, confetti: 230, spread: 2.2, drop: { chance: 0.6, min: 1, max: 3 } }
+  pixel: { label: 'pixel block', hp: 3, height: 1.2, speed: 1.5, radius: 0.55, respawn: 45, confetti: 130, spread: 1.7, drop: { chance: 0.25, min: 1, max: 1 }, pieces: { min: 2, max: 5 } },
+  worn:  { label: 'dungeon-worn', hp: 8, height: 1.6, speed: 1.15, radius: 0.7, respawn: 90, confetti: 230, spread: 2.2, drop: { chance: 0.6, min: 1, max: 3 }, pieces: { min: 4, max: 9 } }
 };
 const BUG_COIN_CHANCE = 0.15;                                           // after meeting Mordecai, a squished bug sometimes leaves a coin
 const CONFETTI_COLORS = [0xff4fa3, 0xffd23f, 0x1fc8b8, 0xff8a1f, 0x3d7bff, 0x9b5de5, 0x5ad65a, 0xff3b3b];   // both llamas use this palette
@@ -1903,6 +1908,14 @@ function pushOutOfLlamas() {                                                    
     if (d < min && d > 0) { player.position.x = l.position.x + dx / d * min; player.position.z = l.position.z + dz / d * min; resolve(player.position, 0.5); }
   }
 }
+function pushOutOfBugs() {                                                         // a bug is solid, on the floor or on a wall: the player cannot walk through it
+  for (const b of bugs) {
+    const k = b.userData; if (k.state !== 'idle' && k.state !== 'spawning') continue;   // a squished bug is flat and no longer in the way
+    if (b.position.y > PLAYER_HEIGHT + 0.3) continue;                              // high on a wall, above the player's head
+    const min = BUG_SIZE * 0.5 + 0.5, dx = player.position.x - b.position.x, dz = player.position.z - b.position.z, d = Math.hypot(dx, dz);
+    if (d < min && d > 0) { player.position.x = b.position.x + dx / d * min; player.position.z = b.position.z + dz / d * min; resolve(player.position, 0.5); }
+  }
+}
 function hitLlama(l, how, dmg = 1) {                                               // how: 'feet', 'hand', 'thrown', 'donut' or 'grenade'
   const k = l.userData; if (k.state !== 'wander') return false;
   k.hp = Math.max(0, k.hp - dmg); k.attacked = true; k.flinch = 0.35; if (how === 'thrown') k.usedCoin = true;
@@ -1916,9 +1929,28 @@ function burstLlama(l) {
     const n = def.drop.min + Math.floor(Math.random() * (def.drop.max - def.drop.min + 1));
     for (let i = 0; i < n; i++) dropCoin(l.position.x + (Math.random() - 0.5) * 1.6, l.position.z + (Math.random() - 0.5) * 1.6, true);
   }
+  dropConfettiBits(l.position.x, l.position.z, def);
   k.state = 'gone'; k.t = 0; l.visible = false; k.hold = false; k.escort = false;
   state.llamas[k.kind]++; if (k.kind === 'worn' && !k.usedCoin) state.wornNoCoin++;
   checkAchievements();
+}
+/* ---- Confetti pieces for pickup: after a llama bursts, a random handful float where it stood. Walk through one to take it; the HUD counts them. ---- */
+const confettiGeo = new THREE.PlaneGeometry(0.2, 0.2), confettiMats = CONFETTI_COLORS.map(c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+const confettiBits = [], CONFETTI_BIT_CAP = 80;                                    // the oldest are tidied away if too many pile up
+function confettiSound() {                                                         // a small bright tick
+  const ctx = audioContext(), t = ctx.currentTime + 0.005;
+  tone(ctx, ctx.destination, { type: 'triangle', freq: 1046.5 + Math.random() * 400, start: t, dur: 0.12, gain: 0.1, attack: 0.002 });
+}
+function dropConfettiBits(x, z, def) {
+  const n = def.pieces.min + Math.floor(Math.random() * (def.pieces.max - def.pieces.min + 1));
+  for (let i = 0; i < n; i++) {
+    const p = new THREE.Vector3(x + (Math.random() - 0.5) * 2.2, 0, z + (Math.random() - 0.5) * 2.2); resolve(p, 0.5);
+    const m = new THREE.Mesh(confettiGeo, confettiMats[Math.floor(Math.random() * confettiMats.length)]);
+    m.position.set(p.x, 0.8, p.z); m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); m.scale.setScalar(0.01);
+    m.userData = { pop: 0, spin: 2 + Math.random() * 3 };
+    floor1.add(m); confettiBits.push(m);
+    if (confettiBits.length > CONFETTI_BIT_CAP) floor1.remove(confettiBits.shift());
+  }
 }
 function dropCoin(x, z, fromLlama) {                                               // a coin lands near (x, z), pushed clear of any wall
   const p = new THREE.Vector3(x, 0, z); resolve(p, 0.5);
@@ -1977,34 +2009,34 @@ function speedMul() {                                                           
   if (slow && !state.confettiHint) { state.confettiHint = true; announce('Note', 'Confetti', 'Walking through confetti slows you down.', { silent: true, duration: 6000 }); }
   return slow ? 0.5 : 1;
 }
-function collectConfetti() {                                                       // an empty grenade case fills when the player walks into fresh confetti
-  if (invHave('caseEmpty') <= 0) return;
-  for (const p of piles) {
-    if (p.collected || p.landedCount < p.n * 0.5) continue;
-    if (Math.hypot(player.position.x - p.x, player.position.z - p.z) < p.radius * 0.8) {
-      p.collected = true; invTake('caseEmpty'); invGive('caseFull'); fillSound(); updateHud();
-      announce('Confetti', 'Case filled', 'A grenade case is full of confetti.', { silent: true, duration: 4000 });
-      if (invHave('caseEmpty') <= 0) return;
-    }
-  }
+const CASE_PIECES = 10;                                                            // pieces of confetti in a full case: one damage each when it is thrown
+function fillCases() {                                                             // an empty case fills by itself whenever the counter reaches 10 pieces
+  let filled = 0;
+  while (invHave('caseEmpty') > 0 && state.confetti >= CASE_PIECES) { state.confetti -= CASE_PIECES; invTake('caseEmpty'); invGive('caseFull'); filled++; }
+  if (!filled) return;
+  fillSound(); updateHud();
+  announce('Confetti', filled > 1 ? 'Cases filled' : 'Case filled', `${filled > 1 ? `${filled} grenade cases are` : 'A grenade case is'} full: ${CASE_PIECES} pieces of confetti each, ${CASE_PIECES} damage when thrown.`, { silent: true, duration: 5000 });
 }
 
 /* ---- Dealing with a llama: the same menu as a bug, but the menu stays open between hits ---- */
 let menuLlama = null;
-const grenadeBtn = bugDlg.querySelector('[data-act="grenade"]');
+const grenadeBtn = bugDlg.querySelector('[data-act="grenade"]'), stickBtn = bugDlg.querySelector('[data-act="stick"]');
 function setMenuTexts(forLlama) {                                                  // the menu's wording for a bug or for a llama
-  if (forLlama) $('stompInfo').textContent = 'With your foot. One hit.';           // (for a bug, openBugMenu words this one, since it depends on floor or wall)
-  $('smackInfo').textContent = forLlama ? 'With your hand. One hit.' : 'With your hand. Works on the floor and the walls.';
-  $('throwInfo').textContent = state.coins > 0 ? `Costs one coin.${forLlama ? ' One hit.' : ''} Coins left: ${state.coins}.` : 'You have no coins left.';
-  $('donutInfo').textContent = forLlama ? 'She runs over and bats it. One hit.' : 'She runs over and squishes it for you.';
+  if (forLlama) $('stompInfo').textContent = 'With your foot. 1 damage.';           // (for a bug, openBugMenu words this one, since it depends on floor or wall)
+  $('smackInfo').textContent = forLlama ? 'With your hand. 1 damage.' : 'With your hand. Works on the floor and the walls.';
+  $('throwInfo').textContent = state.coins > 0 ? `Costs one coin.${forLlama ? ' 1 damage.' : ''} Coins left: ${state.coins}.` : 'You have no coins left.';
+  $('donutInfo').textContent = forLlama ? 'She runs over and bats it. 1 damage.' : 'She runs over and squishes it for you.';
   grenadeBtn.hidden = invHave('caseFull') <= 0;
-  $('grenadeInfo').textContent = forLlama ? `Uses a full case. Two hits. Full cases: ${invHave('caseFull')}.` : `Uses a full case. Full cases: ${invHave('caseFull')}.`;
+  $('grenadeInfo').textContent = forLlama ? `Uses a full case: ${CASE_PIECES} damage. Full cases: ${invHave('caseFull')}.` : `Uses a full case. Full cases: ${invHave('caseFull')}.`;
   throwBtn.setAttribute('aria-disabled', String(state.coins <= 0));
+  stickBtn.hidden = invHave('stick') <= 0;                                         // sticks from the surface can be thrown instead of coins
+  $('stickInfo').textContent = `Costs one stick.${forLlama ? ' 2 damage.' : ''} Sticks left: ${invHave('stick')}.`;
 }
+const DAMAGE = { stomp: 1, smack: 1, throw: 1, stick: 2, grenade: CASE_PIECES, donut: 1 };   // what each way of dealing with a llama takes off its health (a bug dies to any of them)
 function refreshLlamaMenu(l, note) {
   const k = l.userData, def = LLAMA[k.kind];
   $('bugTitle').textContent = `A ${def.label} piñata llama`;
-  $('bugDesc').textContent = `It has ${k.hp} of ${def.hp} hits left. How do you want to deal with it?`;
+  $('bugDesc').textContent = `It has ${k.hp} of ${def.hp} health left. How do you want to deal with it?`;
   stompBtn.setAttribute('aria-disabled', 'false'); setMenuTexts(true);
   $('bugNote').textContent = note || '';
 }
@@ -2018,17 +2050,19 @@ function chooseLlamaAction(act) {
   const k = l.userData, note = $('bugNote');
   if (act === 'throw' && state.coins <= 0) { note.textContent = 'You have no coins left to throw.'; return; }
   if (act === 'grenade' && invHave('caseFull') <= 0) { note.textContent = 'You have no full grenade case.'; return; }
+  if (act === 'stick' && invHave('stick') <= 0) { note.textContent = 'You have no sticks left to throw.'; return; }
   if (act === 'donut') { bugDlg.close(); k.escort = true; donutErrand = { bug: l, t: 0 }; return; }
-  const dmg = act === 'grenade' ? 2 : 1, how = { stomp: 'feet', smack: 'hand', throw: 'thrown', grenade: 'grenade' }[act];
+  const dmg = DAMAGE[act], how = { stomp: 'feet', smack: 'hand', throw: 'thrown', stick: 'stick', grenade: 'grenade' }[act];
   if (act === 'throw') state.coins--;
+  if (act === 'stick') { invTake('stick'); state.sticksThrown++; stickSound(); }
   if (act === 'grenade') { invTake('caseFull'); invGive('caseEmpty'); }
   updateHud();
   if (k.hp - dmg <= 0) bugDlg.close();                                             // the last hit: close the menu first, so the achievement popups are not hidden behind it
   hitLlama(l, how, dmg);
-  if (k.state === 'wander') refreshLlamaMenu(l, `${{ stomp: 'Stomp', smack: 'Smack', throw: 'Coin', grenade: 'Boom' }[act]}! It has ${k.hp} hit${k.hp === 1 ? '' : 's'} left.`);
+  if (k.state === 'wander') refreshLlamaMenu(l, `${{ stomp: 'Stomp', smack: 'Smack', throw: 'Coin', stick: 'Stick', grenade: 'Boom' }[act]}! It has ${k.hp} health left.`);
 }
 
-const { STORE_ITEMS, openStore, cartAdd, cartRemove, emptyCart, buyCart } = createShop({ state, $, storeDlg, invRoom, invGive, coinSound, updateHud, updatePause, checkAchievements });   // the store's mechanics live in shop.js
+const { STORE_ITEMS, openStore, cartAdd, cartRemove, emptyCart, buyCart } = createShop({ state, $, storeDlg, invRoom, invGive, coinSound, updateHud: () => { updateHud(); fillCases(); }, updatePause, checkAchievements });   // the store's mechanics live in shop.js
 
 
 
@@ -2078,7 +2112,7 @@ async function talkToMordecai() {                                       // the e
 }
 $('keep').addEventListener('click', () => finishDlg.close());
 $('finishClose').addEventListener('click', () => finishDlg.close());
-finishDlg.addEventListener('close', () => { if (!state.met) { state.met = true; openAnnexDoor(); } });   // however the talk ends (Leave, the close button or Escape), the first time it ends the new doorway opens
+finishDlg.addEventListener('close', () => { if (!state.met) { state.met = true; openAnnexDoor(); updateHud(); } });   // however the talk ends (Trudge on, the close button or Escape), the first time it ends the new doorway opens
 $('again').addEventListener('click', () => location.reload());
 
 function askDescend() {
@@ -2193,6 +2227,7 @@ function frame() {
   }
   updatePickups(dt); updateHatPop(dt);
   pushOutOfLlamas();                                                    // llamas are solid
+  pushOutOfBugs();                                                      // and so are bugs
   const moved = player.position.clone().sub(before);
   updateWalkBob(dt, moved.length());
   if (state.floor === 1 && dir.lengthSq() > 0 && moved.length() < spd * dt * moveScale * 0.25) { state.wallTime += dt; }   // trying to walk but going nowhere: walking into a wall
@@ -2242,16 +2277,23 @@ function frame() {
     for (let i = coins.length - 1; i >= 0; i--) {                       // coins (Floor 1): spinning, walk over one to take it
       const c = coins[i]; c.rotation.y += 2 * dt;
       if (c.userData.pop < 1) { c.userData.pop = Math.min(1, c.userData.pop + dt / 0.3); c.scale.setScalar(Math.max(0.01, c.userData.pop)); }   // a dropped coin pops up
-      if (Math.hypot(player.position.x - c.position.x, player.position.z - c.position.z) < 1) {
+      if (Math.hypot(player.position.x - c.position.x, player.position.z - c.position.z) < 0.9) {   // about where the player's body touches the (now smaller) coin
         floor1.remove(c); coins.splice(i, 1); state.coins++;
         if (!c.userData.dropped) state.coinsTaken++;                    // only the coins that were lying here at the start count for Pocket change
         else if (c.userData.fromLlama) state.llamaCoins++;
         updateHud(); coinSound(); checkAchievements();
       }
     }
+    for (let i = confettiBits.length - 1; i >= 0; i--) {                // confetti pieces: they turn in the air; walk through one to take it
+      const c = confettiBits[i]; c.rotation.y += c.userData.spin * dt; c.rotation.x += c.userData.spin * 0.5 * dt;
+      if (c.userData.pop < 1) { c.userData.pop = Math.min(1, c.userData.pop + dt / 0.25); c.scale.setScalar(Math.max(0.01, c.userData.pop)); }
+      if (Math.hypot(player.position.x - c.position.x, player.position.z - c.position.z) < 0.9) {
+        floor1.remove(c); confettiBits.splice(i, 1); state.confetti++; confettiSound(); updateHud(); fillCases();
+      }
+    }
     updateDoor(dt); updateAnnexDoor(dt);
     for (const l of llamas) updateLlama(l, dt, time);
-    updatePiles(dt); collectConfetti();
+    updatePiles(dt);
     if (!state.enteredAnnex && annexDoor.done && player.position.z < -13.5 && player.position.x > -4.5) state.enteredAnnex = true;
     if (!state.places.has('store') && player.position.x > 0.5 && player.position.x < 8 && player.position.z < -14 && player.position.z > -20) visitPlace('store');
     for (const b of bugs) updateBug(b, dt, time);
